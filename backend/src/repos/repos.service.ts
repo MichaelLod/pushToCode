@@ -27,8 +27,14 @@ export class ReposService {
     this.reposPath =
       this.configService.get<string>('REPOS_PATH') ||
       path.join(process.cwd(), 'repos');
-    this.githubToken = this.configService.get<string>('GITHUB_TOKEN');
-    this.logger.log(`GitHub token configured: ${this.githubToken ? 'Yes (length: ' + this.githubToken.length + ')' : 'No'}`);
+    const rawToken = this.configService.get<string>('GITHUB_TOKEN');
+    this.githubToken = rawToken?.trim().replace(/^["']|["']$/g, ''); // Remove quotes and whitespace
+    if (this.githubToken) {
+      const masked = this.githubToken.slice(0, 4) + '...' + this.githubToken.slice(-4);
+      this.logger.log(`GitHub token configured: Yes (length: ${this.githubToken.length}, preview: ${masked})`);
+    } else {
+      this.logger.log('GitHub token configured: No');
+    }
     this.initializeReposDirectory();
     this.loadExistingRepos();
   }
