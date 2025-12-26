@@ -144,7 +144,9 @@ final class ReposService: ObservableObject {
                 }
             }
 
-            return try JSONDecoder().decode(T.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(T.self, from: data)
 
         } catch let error as ReposError {
             throw error
