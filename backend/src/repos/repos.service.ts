@@ -259,16 +259,21 @@ export class ReposService {
     }
 
     // Convert SSH URL to HTTPS with token
-    // git@github.com:user/repo.git -> https://oauth2:token@github.com/user/repo.git
+    // git@github.com:user/repo.git -> https://x-access-token:token@github.com/user/repo.git
     if (url.startsWith('git@github.com:')) {
       const path = url.replace('git@github.com:', '');
-      return `https://oauth2:${this.githubToken}@github.com/${path}`;
+      const authUrl = `https://x-access-token:${this.githubToken}@github.com/${path}`;
+      this.logger.debug(`Transformed URL: https://x-access-token:****@github.com/${path}`);
+      return authUrl;
     }
 
     // Add token to existing HTTPS GitHub URL
-    // https://github.com/user/repo.git -> https://oauth2:token@github.com/user/repo.git
+    // https://github.com/user/repo.git -> https://x-access-token:token@github.com/user/repo.git
     if (url.startsWith('https://github.com/')) {
-      return url.replace('https://github.com/', `https://oauth2:${this.githubToken}@github.com/`);
+      const path = url.replace('https://github.com/', '');
+      const authUrl = `https://x-access-token:${this.githubToken}@github.com/${path}`;
+      this.logger.debug(`Transformed URL: https://x-access-token:****@github.com/${path}`);
+      return authUrl;
     }
 
     // Return original for non-GitHub URLs
