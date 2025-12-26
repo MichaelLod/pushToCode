@@ -13,7 +13,7 @@ enum OutputType: String, Codable {
     case fileChange = "file_change"
 }
 
-struct Message: Identifiable, Codable {
+struct Message: Identifiable, Codable, Equatable {
     let id: String
     let role: MessageRole
     var content: String

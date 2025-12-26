@@ -8,7 +8,7 @@ enum SessionStatus: String, Codable {
     case disconnected
 }
 
-struct Session: Identifiable, Codable {
+struct Session: Identifiable, Codable, Equatable {
     let id: String
     var projectId: String?
     var projectPath: String?

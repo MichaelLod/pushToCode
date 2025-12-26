@@ -10,20 +10,20 @@ enum ClientMessageType: String, Codable {
 }
 
 struct InitSessionMessage: Codable {
-    let type: String = "init_session"
+    var type: String = "init_session"
     let sessionId: String
     let projectId: String
 }
 
 struct ExecuteMessage: Codable {
-    let type: String = "execute"
+    var type: String = "execute"
     let sessionId: String
     let prompt: String
     let projectPath: String
 }
 
 struct StopMessage: Codable {
-    let type: String = "stop"
+    var type: String = "stop"
     let sessionId: String
 }
 
