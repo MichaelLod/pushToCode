@@ -3,36 +3,29 @@ import SwiftUI
 struct TerminalView: View {
     @ObservedObject var viewModel: TerminalViewModel
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var showProjectPicker = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Messages List
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.session.messages) { message in
-                            MessageRow(message: message)
-                                .id(message.id)
-                        }
-                    }
-                    .padding()
-                }
-                .onChange(of: viewModel.session.messages.count) { _ in
-                    scrollToBottom(proxy: proxy)
-                }
-                .onAppear {
-                    scrollProxy = proxy
-                }
+            // Connection Status Bar (slim, at top)
+            ConnectionStatusView(
+                state: connectionState,
+                onTap: handleStatusTap,
+                onRetry: { viewModel.connect() }
+            )
+
+            Divider()
+
+            // Content Area: Messages or Empty State
+            if viewModel.session.messages.isEmpty {
+                emptyStateView
+            } else {
+                messagesListView
             }
 
             Divider()
 
-            // Status Bar
-            statusBar
-
-            Divider()
-
-            // Input Area
+            // Input Area (always at bottom)
             inputArea
         }
         .background(Color(.systemBackground))
@@ -46,55 +39,96 @@ struct TerminalView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
-    }
-
-    private var statusBar: some View {
-        HStack {
-            // Connection status
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(viewModel.isConnected ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-                Text(viewModel.isConnected ? "Connected" : "Disconnected")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            // Session status
-            Text(viewModel.session.status.rawValue.capitalized)
-                .font(.caption)
-                .foregroundColor(statusColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(statusColor.opacity(0.2))
-                .cornerRadius(4)
-
-            // Stop button
-            if viewModel.session.status == .running {
-                Button {
-                    viewModel.stop()
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .foregroundColor(.red)
+        .sheet(isPresented: $showProjectPicker) {
+            ProjectSelectionView(
+                selectedProjectPath: viewModel.session.projectPath,
+                onSelect: { project in
+                    viewModel.setProject(project)
                 }
-            }
+            )
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemBackground))
     }
 
-    private var statusColor: Color {
+    // MARK: - Connection State
+
+    private var connectionState: ConnectionState {
+        // Check for error first
+        if let error = viewModel.errorMessage {
+            return .error(error)
+        }
+
+        // Map session status to connection state
         switch viewModel.session.status {
-        case .idle: return .gray
-        case .running: return .blue
-        case .stopped: return .orange
-        case .connecting: return .yellow
-        case .disconnected: return .red
+        case .connecting:
+            return .connecting
+        case .disconnected:
+            return .disconnected
+        case .running:
+            return .running
+        case .idle, .stopped:
+            return viewModel.isConnected ? .connected : .disconnected
         }
     }
+
+    private func handleStatusTap() {
+        switch connectionState {
+        case .disconnected:
+            viewModel.connect()
+        case .running:
+            viewModel.stop()
+        case .error:
+            viewModel.errorMessage = nil
+            viewModel.connect()
+        default:
+            break
+        }
+    }
+
+    // MARK: - Empty State View
+
+    private var emptyStateView: some View {
+        EmptyStateView(
+            context: emptyStateContext,
+            onSelectProject: { showProjectPicker = true },
+            onPromptSelected: { prompt in
+                viewModel.inputText = prompt
+            }
+        )
+    }
+
+    private var emptyStateContext: EmptyStateContext {
+        if viewModel.session.projectPath == nil {
+            return .noProject
+        } else if viewModel.session.status == .connecting || !viewModel.isConnected {
+            return .connecting
+        } else {
+            return .ready
+        }
+    }
+
+    // MARK: - Messages List View
+
+    private var messagesListView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(viewModel.session.messages) { message in
+                        MessageRow(message: message)
+                            .id(message.id)
+                    }
+                }
+                .padding()
+            }
+            .onChange(of: viewModel.session.messages.count) { _ in
+                scrollToBottom(proxy: proxy)
+            }
+            .onAppear {
+                scrollProxy = proxy
+            }
+        }
+    }
+
+    // MARK: - Input Area
 
     private var inputArea: some View {
         HStack(spacing: 12) {
@@ -106,6 +140,7 @@ struct TerminalView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
+            // Send button with 44px minimum touch target
             Button {
                 viewModel.sendPrompt(viewModel.inputText)
             } label: {
@@ -113,7 +148,10 @@ struct TerminalView: View {
                     .font(.system(size: 32))
                     .foregroundColor(canSend ? .blue : .gray)
             }
+            .frame(minWidth: 44, minHeight: 44)
             .disabled(!canSend)
+            .accessibilityLabel("Send prompt")
+            .accessibilityHint(canSend ? "Double tap to send your message" : "Enter a prompt and select a project to send")
         }
         .padding()
     }
@@ -148,6 +186,7 @@ struct MessageRow: View {
                     (message.role == .user ? Color.blue : Color.purple).opacity(0.2)
                 )
                 .cornerRadius(8)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 // Role label
@@ -162,6 +201,8 @@ struct MessageRow: View {
 
             Spacer()
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(message.role == .user ? "You" : "Claude") said: \(message.content)")
     }
 
     @ViewBuilder
@@ -227,5 +268,15 @@ struct MessageRow: View {
             Message(role: .assistant, content: "Of course! I'd be happy to help. What bug are you experiencing?")
         ]
     )
+    return TerminalView(viewModel: TerminalViewModel(session: session))
+}
+
+#Preview("Empty State - No Project") {
+    let session = Session()
+    return TerminalView(viewModel: TerminalViewModel(session: session))
+}
+
+#Preview("Empty State - Ready") {
+    let session = Session(projectPath: "/path/to/project")
     return TerminalView(viewModel: TerminalViewModel(session: session))
 }

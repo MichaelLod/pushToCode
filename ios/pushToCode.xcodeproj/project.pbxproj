@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		03B1472DF96583D25E9A64D0 /* VoiceRecorderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 720C4CF41179CC1AF4D0939F /* VoiceRecorderViewModel.swift */; };
+		11111111111111111111AAA1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB1 /* ConnectionStatusView.swift */; };
+		11111111111111111111AAA2 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB2 /* EmptyStateView.swift */; };
+		11111111111111111111AAA3 /* ProjectSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB3 /* ProjectSelectionView.swift */; };
 		3C7F0B29DD518FBFD82B1725 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = E958A674FC15A43C99D4DE77 /* Session.swift */; };
 		45B2E12EAE27FE69837E5D5D /* TerminalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBA0E8DE81A268EC777867C /* TerminalViewModel.swift */; };
 		4CC4345CBC583C90DAA59FF6 /* RepoManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 624B175FC7799D296942CD91 /* RepoManagerView.swift */; };
@@ -31,6 +34,9 @@
 
 /* Begin PBXFileReference section */
 		0F7447280D9B81EBAAD0C1CF /* pushToCodeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pushToCodeApp.swift; sourceTree = "<group>"; };
+		22222222222222222222BBB1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
+		22222222222222222222BBB2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		22222222222222222222BBB3 /* ProjectSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSelectionView.swift; sourceTree = "<group>"; };
 		37F066FD591B787602E4A507 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		3D294DAF6BC966D01B85B867 /* ProjectPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPickerView.swift; sourceTree = "<group>"; };
 		5B8F2B10A579AAAB7200F5E6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -122,7 +128,10 @@
 		C4644ADA719508532C19AF71 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				22222222222222222222BBB1 /* ConnectionStatusView.swift */,
+				22222222222222222222BBB2 /* EmptyStateView.swift */,
 				3D294DAF6BC966D01B85B867 /* ProjectPickerView.swift */,
+				22222222222222222222BBB3 /* ProjectSelectionView.swift */,
 				624B175FC7799D296942CD91 /* RepoManagerView.swift */,
 				B35B6DDB1004818F90CB732B /* SessionTabView.swift */,
 				5B8F2B10A579AAAB7200F5E6 /* SettingsView.swift */,
@@ -235,9 +244,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				D6C5B909D2396593BEF3637A /* AudioRecorderService.swift in Sources */,
+				11111111111111111111AAA1 /* ConnectionStatusView.swift in Sources */,
+				11111111111111111111AAA2 /* EmptyStateView.swift in Sources */,
 				63DEA8DC464E4635855F3F0A /* Message.swift in Sources */,
 				567357C31847D000FDE8B306 /* Project.swift in Sources */,
 				BCEE2B6CD3A0B98A05BD81C4 /* ProjectPickerView.swift in Sources */,
+				11111111111111111111AAA3 /* ProjectSelectionView.swift in Sources */,
 				4CC4345CBC583C90DAA59FF6 /* RepoManagerView.swift in Sources */,
 				E4EF26DD487569A9D593ECDF /* ReposService.swift in Sources */,
 				3C7F0B29DD518FBFD82B1725 /* Session.swift in Sources */,
