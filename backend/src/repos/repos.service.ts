@@ -21,10 +21,13 @@ export class ReposService {
   private readonly reposPath: string;
   private repos: Map<string, RepoMetadata> = new Map();
 
+  private readonly githubToken: string | undefined;
+
   constructor(private configService: ConfigService) {
     this.reposPath =
       this.configService.get<string>('REPOS_PATH') ||
       path.join(process.cwd(), 'repos');
+    this.githubToken = this.configService.get<string>('GITHUB_TOKEN');
     this.initializeReposDirectory();
     this.loadExistingRepos();
   }
@@ -89,6 +92,7 @@ export class ReposService {
       // Directory doesn't exist, which is what we want
     }
 
+    const cloneUrl = this.getAuthenticatedUrl(url);
     this.logger.log(`Cloning ${url} to ${repoPath}`);
 
     await new Promise<void>((resolve, reject) => {
@@ -98,7 +102,7 @@ export class ReposService {
         args.push('--branch', branch);
       }
 
-      args.push('--depth', '1', url, repoPath);
+      args.push('--depth', '1', cloneUrl, repoPath);
 
       const git = spawn('git', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -238,6 +242,29 @@ export class ReposService {
     let name = url.split('/').pop() || url.split(':').pop() || 'repo';
     name = name.replace(/\.git$/, '');
     return name;
+  }
+
+  private getAuthenticatedUrl(url: string): string {
+    // If no token, return original URL
+    if (!this.githubToken) {
+      return url;
+    }
+
+    // Convert SSH URL to HTTPS with token
+    // git@github.com:user/repo.git -> https://oauth2:token@github.com/user/repo.git
+    if (url.startsWith('git@github.com:')) {
+      const path = url.replace('git@github.com:', '');
+      return `https://oauth2:${this.githubToken}@github.com/${path}`;
+    }
+
+    // Add token to existing HTTPS GitHub URL
+    // https://github.com/user/repo.git -> https://oauth2:token@github.com/user/repo.git
+    if (url.startsWith('https://github.com/')) {
+      return url.replace('https://github.com/', `https://oauth2:${this.githubToken}@github.com/`);
+    }
+
+    // Return original for non-GitHub URLs
+    return url;
   }
 
   getRepoPath(id: string): string | null {
