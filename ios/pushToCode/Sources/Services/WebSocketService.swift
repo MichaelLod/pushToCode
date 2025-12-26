@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 enum WebSocketError: Error, LocalizedError {
     case notConnected
