@@ -1,0 +1,72 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TranscriptionController = void 0;
+const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const api_key_guard_1 = require("../auth/guards/api-key.guard");
+const transcription_service_1 = require("./transcription.service");
+const transcribe_dto_1 = require("./dto/transcribe.dto");
+let TranscriptionController = class TranscriptionController {
+    transcriptionService;
+    constructor(transcriptionService) {
+        this.transcriptionService = transcriptionService;
+    }
+    async transcribe(file, dto) {
+        if (!file) {
+            throw new common_1.BadRequestException('Audio file is required');
+        }
+        return this.transcriptionService.transcribe(file.buffer, file.originalname, {
+            language: dto.language,
+            prompt: dto.prompt,
+        });
+    }
+};
+exports.TranscriptionController = TranscriptionController;
+__decorate([
+    (0, common_1.Post)(),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('audio', {
+        limits: {
+            fileSize: 25 * 1024 * 1024,
+        },
+        fileFilter: (req, file, callback) => {
+            const allowedMimes = [
+                'audio/m4a',
+                'audio/mp4',
+                'audio/mpeg',
+                'audio/mp3',
+                'audio/wav',
+                'audio/webm',
+                'audio/x-m4a',
+            ];
+            if (allowedMimes.includes(file.mimetype)) {
+                callback(null, true);
+            }
+            else {
+                callback(new common_1.BadRequestException(`Invalid audio format: ${file.mimetype}. Supported: m4a, mp3, mp4, wav, webm`), false);
+            }
+        },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, transcribe_dto_1.TranscribeDto]),
+    __metadata("design:returntype", Promise)
+], TranscriptionController.prototype, "transcribe", null);
+exports.TranscriptionController = TranscriptionController = __decorate([
+    (0, common_1.Controller)('transcribe'),
+    (0, common_1.UseGuards)(api_key_guard_1.ApiKeyGuard),
+    __metadata("design:paramtypes", [transcription_service_1.TranscriptionService])
+], TranscriptionController);
+//# sourceMappingURL=transcription.controller.js.map

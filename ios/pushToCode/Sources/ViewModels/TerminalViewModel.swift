@@ -1,0 +1,182 @@
+import Foundation
+import Combine
+
+@MainActor
+final class TerminalViewModel: ObservableObject {
+    @Published var session: Session
+    @Published var inputText: String = ""
+    @Published var isConnected = false
+    @Published var errorMessage: String?
+
+    private let webSocketService = WebSocketService.shared
+    private let settingsManager = SettingsManager.shared
+    private var cancellables = Set<AnyCancellable>()
+
+    init(session: Session) {
+        self.session = session
+        setupBindings()
+    }
+
+    private func setupBindings() {
+        // Observe WebSocket connection state
+        webSocketService.$isConnected
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] connected in
+                self?.isConnected = connected
+            }
+            .store(in: &cancellables)
+
+        // Observe incoming messages
+        webSocketService.messagePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] message in
+                self?.handleMessage(message)
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Connection
+
+    func connect() {
+        guard let serverURL = settingsManager.serverURL,
+              let apiKey = settingsManager.apiKey else {
+            errorMessage = "Server not configured. Please go to Settings."
+            return
+        }
+
+        // Convert HTTP URL to WebSocket URL
+        let wsURL = serverURL
+            .replacingOccurrences(of: "https://", with: "wss://")
+            .replacingOccurrences(of: "http://", with: "ws://")
+
+        session.status = .connecting
+        webSocketService.connect(to: wsURL, apiKey: apiKey)
+    }
+
+    func disconnect() {
+        webSocketService.disconnect()
+        session.status = .disconnected
+    }
+
+    func initializeSession() {
+        guard isConnected else {
+            connect()
+            // Will initialize after connection
+            return
+        }
+
+        webSocketService.initSession(
+            sessionId: session.id,
+            projectId: session.projectId ?? session.projectPath ?? ""
+        )
+    }
+
+    // MARK: - Commands
+
+    func sendPrompt(_ prompt: String) {
+        guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let projectPath = session.projectPath else {
+            errorMessage = "Please select a project first"
+            return
+        }
+
+        // Add user message
+        let userMessage = Message(role: .user, content: prompt)
+        session.addMessage(userMessage)
+
+        // Clear input
+        inputText = ""
+
+        // Send to server
+        webSocketService.execute(
+            sessionId: session.id,
+            prompt: prompt,
+            projectPath: projectPath
+        )
+
+        session.status = .running
+    }
+
+    func stop() {
+        webSocketService.stop(sessionId: session.id)
+        session.status = .stopped
+    }
+
+    // MARK: - Message Handling
+
+    private func handleMessage(_ message: ServerMessage) {
+        guard message.sessionId == session.id || message.sessionId == nil else { return }
+
+        switch message.type {
+        case .sessionReady:
+            session.status = .idle
+            errorMessage = nil
+
+        case .status:
+            if let status = message.status {
+                session.status = status
+            }
+
+        case .output:
+            handleOutput(message)
+
+        case .error:
+            errorMessage = message.message ?? "Unknown error"
+            session.status = .idle
+
+        case .pong:
+            // Heartbeat response, no action needed
+            break
+        }
+    }
+
+    private func handleOutput(_ message: ServerMessage) {
+        guard let content = message.content, !content.isEmpty else { return }
+
+        let outputType = message.outputType ?? .text
+        let isFinal = message.isFinal ?? false
+
+        // Check if we should append to the last message or create new one
+        if let lastMessage = session.messages.last,
+           lastMessage.role == .assistant,
+           !lastMessage.isFinal,
+           lastMessage.outputType == outputType {
+            // Append to existing message
+            session.appendToLastMessage(content)
+            if isFinal {
+                if var last = session.messages.last {
+                    last.isFinal = true
+                    session.messages[session.messages.count - 1] = last
+                }
+            }
+        } else {
+            // Create new message
+            let newMessage = Message(
+                role: .assistant,
+                content: content,
+                outputType: outputType,
+                isFinal: isFinal
+            )
+            session.addMessage(newMessage)
+        }
+    }
+
+    // MARK: - Project
+
+    func setProject(_ project: Project) {
+        session.projectId = project.id
+        session.projectPath = project.path
+
+        // Re-initialize session with new project
+        if isConnected {
+            webSocketService.initSession(
+                sessionId: session.id,
+                projectId: project.id
+            )
+        }
+    }
+
+    func clearMessages() {
+        session.messages = []
+    }
+}

@@ -1,0 +1,247 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { spawn } from 'child_process';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { CloneRepoDto, RepoResponseDto } from './dto/repo.dto';
+
+interface RepoMetadata {
+  id: string;
+  name: string;
+  path: string;
+  url: string;
+  branch?: string;
+  createdAt: Date;
+}
+
+@Injectable()
+export class ReposService {
+  private readonly logger = new Logger(ReposService.name);
+  private readonly reposPath: string;
+  private repos: Map<string, RepoMetadata> = new Map();
+
+  constructor(private configService: ConfigService) {
+    this.reposPath =
+      this.configService.get<string>('REPOS_PATH') ||
+      path.join(process.cwd(), 'repos');
+    this.initializeReposDirectory();
+    this.loadExistingRepos();
+  }
+
+  private async initializeReposDirectory(): Promise<void> {
+    try {
+      await fs.mkdir(this.reposPath, { recursive: true });
+      this.logger.log(`Repos directory initialized: ${this.reposPath}`);
+    } catch (error) {
+      this.logger.error(`Failed to create repos directory: ${error.message}`);
+    }
+  }
+
+  private async loadExistingRepos(): Promise<void> {
+    try {
+      const metadataPath = path.join(this.reposPath, '.repos-metadata.json');
+      const data = await fs.readFile(metadataPath, 'utf-8');
+      const repos: RepoMetadata[] = JSON.parse(data);
+
+      for (const repo of repos) {
+        // Verify the repo still exists
+        try {
+          await fs.access(repo.path);
+          this.repos.set(repo.id, {
+            ...repo,
+            createdAt: new Date(repo.createdAt),
+          });
+        } catch {
+          this.logger.warn(
+            `Repo ${repo.name} no longer exists at ${repo.path}`,
+          );
+        }
+      }
+
+      this.logger.log(`Loaded ${this.repos.size} existing repos`);
+    } catch {
+      // No metadata file yet, that's fine
+      this.logger.log('No existing repos metadata found');
+    }
+  }
+
+  private async saveMetadata(): Promise<void> {
+    const metadataPath = path.join(this.reposPath, '.repos-metadata.json');
+    const repos = Array.from(this.repos.values());
+    await fs.writeFile(metadataPath, JSON.stringify(repos, null, 2));
+  }
+
+  async clone(dto: CloneRepoDto): Promise<RepoResponseDto> {
+    const { url, branch } = dto;
+
+    // Extract repo name from URL if not provided
+    const name = dto.name || this.extractRepoName(url);
+    const id = uuidv4();
+    const repoPath = path.join(this.reposPath, name);
+
+    // Check if directory already exists
+    try {
+      await fs.access(repoPath);
+      throw new Error(`Repository with name "${name}" already exists`);
+    } catch (error) {
+      if (error.message.includes('already exists')) throw error;
+      // Directory doesn't exist, which is what we want
+    }
+
+    this.logger.log(`Cloning ${url} to ${repoPath}`);
+
+    await new Promise<void>((resolve, reject) => {
+      const args = ['clone'];
+
+      if (branch) {
+        args.push('--branch', branch);
+      }
+
+      args.push('--depth', '1', url, repoPath);
+
+      const git = spawn('git', args, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+
+      git.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      git.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Git clone failed: ${stderr}`));
+        }
+      });
+
+      git.on('error', (error) => {
+        reject(new Error(`Git clone error: ${error.message}`));
+      });
+    });
+
+    const repo: RepoMetadata = {
+      id,
+      name,
+      path: repoPath,
+      url,
+      branch,
+      createdAt: new Date(),
+    };
+
+    this.repos.set(id, repo);
+    await this.saveMetadata();
+
+    this.logger.log(`Cloned ${name} successfully`);
+
+    return {
+      id: repo.id,
+      name: repo.name,
+      path: repo.path,
+      url: repo.url,
+      createdAt: repo.createdAt,
+      branch: repo.branch,
+    };
+  }
+
+  async list(): Promise<RepoResponseDto[]> {
+    return Array.from(this.repos.values()).map((repo) => ({
+      id: repo.id,
+      name: repo.name,
+      path: repo.path,
+      url: repo.url,
+      createdAt: repo.createdAt,
+      branch: repo.branch,
+    }));
+  }
+
+  async get(id: string): Promise<RepoResponseDto> {
+    const repo = this.repos.get(id);
+    if (!repo) {
+      throw new NotFoundException(`Repository with id "${id}" not found`);
+    }
+
+    return {
+      id: repo.id,
+      name: repo.name,
+      path: repo.path,
+      url: repo.url,
+      createdAt: repo.createdAt,
+      branch: repo.branch,
+    };
+  }
+
+  async delete(id: string): Promise<void> {
+    const repo = this.repos.get(id);
+    if (!repo) {
+      throw new NotFoundException(`Repository with id "${id}" not found`);
+    }
+
+    this.logger.log(`Deleting repository ${repo.name}`);
+
+    try {
+      await fs.rm(repo.path, { recursive: true, force: true });
+    } catch (error) {
+      this.logger.error(`Failed to delete repo files: ${error.message}`);
+      throw new Error(`Failed to delete repository: ${error.message}`);
+    }
+
+    this.repos.delete(id);
+    await this.saveMetadata();
+
+    this.logger.log(`Deleted ${repo.name} successfully`);
+  }
+
+  async pull(id: string): Promise<void> {
+    const repo = this.repos.get(id);
+    if (!repo) {
+      throw new NotFoundException(`Repository with id "${id}" not found`);
+    }
+
+    this.logger.log(`Pulling latest for ${repo.name}`);
+
+    await new Promise<void>((resolve, reject) => {
+      const git = spawn('git', ['pull'], {
+        cwd: repo.path,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+
+      git.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      git.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Git pull failed: ${stderr}`));
+        }
+      });
+
+      git.on('error', (error) => {
+        reject(new Error(`Git pull error: ${error.message}`));
+      });
+    });
+  }
+
+  private extractRepoName(url: string): string {
+    // Handle various URL formats:
+    // https://github.com/user/repo.git
+    // git@github.com:user/repo.git
+    // https://github.com/user/repo
+
+    let name = url.split('/').pop() || url.split(':').pop() || 'repo';
+    name = name.replace(/\.git$/, '');
+    return name;
+  }
+
+  getRepoPath(id: string): string | null {
+    const repo = this.repos.get(id);
+    return repo?.path || null;
+  }
+}
