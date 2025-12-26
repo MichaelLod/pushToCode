@@ -55,7 +55,10 @@ final class VoiceRecorderViewModel: ObservableObject {
 
         Task {
             // Check permission
-            let hasPermission = audioRecorder.hasPermission || await audioRecorder.requestPermission()
+            var hasPermission = audioRecorder.hasPermission
+            if !hasPermission {
+                hasPermission = await audioRecorder.requestPermission()
+            }
             guard hasPermission else {
                 showPermissionAlert = true
                 return
