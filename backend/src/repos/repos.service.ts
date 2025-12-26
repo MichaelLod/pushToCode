@@ -28,6 +28,7 @@ export class ReposService {
       this.configService.get<string>('REPOS_PATH') ||
       path.join(process.cwd(), 'repos');
     this.githubToken = this.configService.get<string>('GITHUB_TOKEN');
+    this.logger.log(`GitHub token configured: ${this.githubToken ? 'Yes (length: ' + this.githubToken.length + ')' : 'No'}`);
     this.initializeReposDirectory();
     this.loadExistingRepos();
   }
@@ -245,6 +246,7 @@ export class ReposService {
   }
 
   private getAuthenticatedUrl(url: string): string {
+    this.logger.debug(`Original URL: ${url}, Token present: ${!!this.githubToken}`);
     // If no token, return original URL
     if (!this.githubToken) {
       return url;
