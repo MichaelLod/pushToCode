@@ -30,8 +30,20 @@ export class ClaudeService implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
-    // Check Claude auth status on startup
+    // First verify CLI is installed and working
+    await this.verifyCliInstalled();
+    // Then check Claude auth status on startup
     await this.checkAuthStatus();
+  }
+
+  private async verifyCliInstalled(): Promise<void> {
+    this.logger.log('Verifying Claude CLI installation...');
+    try {
+      const version = execSync('claude --version', { timeout: 10000 }).toString().trim();
+      this.logger.log(`Claude CLI version: ${version}`);
+    } catch (error) {
+      this.logger.error(`Claude CLI not working: ${error.message}`);
+    }
   }
 
   private async checkAuthStatus(): Promise<void> {
@@ -54,6 +66,9 @@ export class ClaudeService implements OnModuleInit {
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+
+      // Close stdin immediately
+      claudeProcess.stdin?.end();
 
       let stderrOutput = '';
       let stdoutOutput = '';
@@ -187,6 +202,9 @@ export class ClaudeService implements OnModuleInit {
     });
 
     this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
+
+    // Close stdin immediately - CLI shouldn't need input with -p flag
+    claudeProcess.stdin?.end();
 
     session.process = claudeProcess;
 
