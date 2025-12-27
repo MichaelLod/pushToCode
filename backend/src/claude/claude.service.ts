@@ -17,6 +17,7 @@ interface SessionData {
   process: ChildProcess;
   emitter: EventEmitter;
   projectPath: string;
+  claudeSessionId?: string;  // Claude's internal session ID for --resume
 }
 
 @Injectable()
@@ -152,8 +153,14 @@ export class ClaudeService implements OnModuleInit {
       '-p', prompt,
       '--output-format', 'stream-json',
       '--dangerously-skip-permissions',  // Required for Docker/headless
-      '--verbose',  // More output for debugging
     ];
+
+    // Resume previous conversation if we have a Claude session ID
+    if (session.claudeSessionId) {
+      args.push('--resume', session.claudeSessionId);
+      this.logger.log(`Resuming Claude session: ${session.claudeSessionId}`);
+    }
+
     this.logger.log(`Claude args: ${args.join(' ')}`);
 
     const claudeProcess = spawn('claude', args, {
@@ -197,6 +204,13 @@ export class ClaudeService implements OnModuleInit {
 
         try {
           const parsed = JSON.parse(line);
+
+          // Capture Claude session ID for conversation continuity
+          if (parsed.session_id && !session.claudeSessionId) {
+            session.claudeSessionId = parsed.session_id;
+            this.logger.log(`Captured Claude session ID: ${parsed.session_id}`);
+          }
+
           const output = this.parseClaudeOutput(parsed);
           if (output) {
             emitter.emit('output', output);

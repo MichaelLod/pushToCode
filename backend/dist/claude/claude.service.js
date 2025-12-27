@@ -120,8 +120,11 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             '-p', prompt,
             '--output-format', 'stream-json',
             '--dangerously-skip-permissions',
-            '--verbose',
         ];
+        if (session.claudeSessionId) {
+            args.push('--resume', session.claudeSessionId);
+            this.logger.log(`Resuming Claude session: ${session.claudeSessionId}`);
+        }
         this.logger.log(`Claude args: ${args.join(' ')}`);
         const claudeProcess = (0, child_process_1.spawn)('claude', args, {
             cwd: projectPath,
@@ -155,6 +158,10 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                     continue;
                 try {
                     const parsed = JSON.parse(line);
+                    if (parsed.session_id && !session.claudeSessionId) {
+                        session.claudeSessionId = parsed.session_id;
+                        this.logger.log(`Captured Claude session ID: ${parsed.session_id}`);
+                    }
                     const output = this.parseClaudeOutput(parsed);
                     if (output) {
                         emitter.emit('output', output);
