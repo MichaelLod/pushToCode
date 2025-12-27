@@ -15,6 +15,7 @@ import {
   CloneRepoDto,
   RepoResponseDto,
   RepoListResponseDto,
+  AvailableReposResponseDto,
 } from './dto/repo.dto';
 
 @Controller('repos')
@@ -34,6 +35,12 @@ export class ReposController {
       repos,
       total: repos.length,
     };
+  }
+
+  @Get('available')
+  async getAvailable(): Promise<AvailableReposResponseDto> {
+    const repos = await this.reposService.getAvailableRepos();
+    return { repos, total: repos.length };
   }
 
   @Get(':id')

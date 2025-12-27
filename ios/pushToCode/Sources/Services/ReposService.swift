@@ -24,6 +24,7 @@ final class ReposService: ObservableObject {
     static let shared = ReposService()
 
     @Published private(set) var projects: [Project] = []
+    @Published private(set) var availableRepos: [GitHubRepo] = []
     @Published private(set) var isLoading = false
 
     private let settingsManager = SettingsManager.shared
@@ -45,6 +46,21 @@ final class ReposService: ObservableObject {
 
         await MainActor.run {
             self.projects = response.repos
+        }
+    }
+
+    func fetchAvailableRepos() async throws {
+        guard settingsManager.isConfigured else {
+            throw ReposError.notConfigured
+        }
+
+        let response: GitHubReposResponse = try await makeRequest(
+            endpoint: "/api/repos/available",
+            method: "GET"
+        )
+
+        await MainActor.run {
+            self.availableRepos = response.repos
         }
     }
 

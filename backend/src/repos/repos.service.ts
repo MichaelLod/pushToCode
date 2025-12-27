@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { CloneRepoDto, RepoResponseDto } from './dto/repo.dto';
+import { CloneRepoDto, RepoResponseDto, GitHubRepoDto } from './dto/repo.dto';
 
 interface RepoMetadata {
   id: string;
@@ -283,5 +283,34 @@ export class ReposService {
   getRepoPath(id: string): string | null {
     const repo = this.repos.get(id);
     return repo?.path || null;
+  }
+
+  async getAvailableRepos(): Promise<GitHubRepoDto[]> {
+    if (!this.githubToken) {
+      throw new Error('GitHub token not configured');
+    }
+
+    const response = await fetch(
+      'https://api.github.com/user/repos?per_page=100&sort=updated',
+      {
+        headers: {
+          Authorization: `Bearer ${this.githubToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    const repos = await response.json();
+    return repos.map((r: any) => ({
+      name: r.name,
+      full_name: r.full_name,
+      clone_url: r.clone_url,
+      private: r.private,
+      description: r.description,
+    }));
   }
 }

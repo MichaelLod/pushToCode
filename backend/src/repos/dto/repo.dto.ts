@@ -37,3 +37,16 @@ export class RepoListResponseDto {
   repos: RepoResponseDto[];
   total: number;
 }
+
+export class GitHubRepoDto {
+  name: string;
+  full_name: string;
+  clone_url: string;
+  private: boolean;
+  description: string | null;
+}
+
+export class AvailableReposResponseDto {
+  repos: GitHubRepoDto[];
+  total: number;
+}

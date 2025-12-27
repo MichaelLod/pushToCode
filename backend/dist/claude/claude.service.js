@@ -46,7 +46,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         session.process = claudeProcess;
         let buffer = '';
-        let currentOutputType = 'text';
+        const currentOutputType = 'text';
         claudeProcess.stdout?.on('data', (data) => {
             buffer += data.toString();
             const lines = buffer.split('\n');

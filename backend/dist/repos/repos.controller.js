@@ -32,6 +32,10 @@ let ReposController = class ReposController {
             total: repos.length,
         };
     }
+    async getAvailable() {
+        const repos = await this.reposService.getAvailableRepos();
+        return { repos, total: repos.length };
+    }
     async get(id) {
         return this.reposService.get(id);
     }
@@ -56,6 +60,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ReposController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('available'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ReposController.prototype, "getAvailable", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

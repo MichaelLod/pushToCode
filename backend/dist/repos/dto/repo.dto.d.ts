@@ -15,3 +15,14 @@ export declare class RepoListResponseDto {
     repos: RepoResponseDto[];
     total: number;
 }
+export declare class GitHubRepoDto {
+    name: string;
+    full_name: string;
+    clone_url: string;
+    private: boolean;
+    description: string | null;
+}
+export declare class AvailableReposResponseDto {
+    repos: GitHubRepoDto[];
+    total: number;
+}

@@ -55,11 +55,21 @@ let ReposService = ReposService_1 = class ReposService {
     logger = new common_1.Logger(ReposService_1.name);
     reposPath;
     repos = new Map();
+    githubToken;
     constructor(configService) {
         this.configService = configService;
         this.reposPath =
             this.configService.get('REPOS_PATH') ||
                 path.join(process.cwd(), 'repos');
+        const rawToken = this.configService.get('GITHUB_TOKEN');
+        this.githubToken = rawToken?.trim().replace(/^["']|["']$/g, '');
+        if (this.githubToken) {
+            const masked = this.githubToken.slice(0, 4) + '...' + this.githubToken.slice(-4);
+            this.logger.log(`GitHub token configured: Yes (length: ${this.githubToken.length}, preview: ${masked})`);
+        }
+        else {
+            this.logger.log('GitHub token configured: No');
+        }
         this.initializeReposDirectory();
         this.loadExistingRepos();
     }
@@ -113,13 +123,14 @@ let ReposService = ReposService_1 = class ReposService {
             if (error.message.includes('already exists'))
                 throw error;
         }
+        const cloneUrl = this.getAuthenticatedUrl(url);
         this.logger.log(`Cloning ${url} to ${repoPath}`);
         await new Promise((resolve, reject) => {
             const args = ['clone'];
             if (branch) {
                 args.push('--branch', branch);
             }
-            args.push('--depth', '1', url, repoPath);
+            args.push('--depth', '1', cloneUrl, repoPath);
             const git = (0, child_process_1.spawn)('git', args, {
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -233,9 +244,50 @@ let ReposService = ReposService_1 = class ReposService {
         name = name.replace(/\.git$/, '');
         return name;
     }
+    getAuthenticatedUrl(url) {
+        this.logger.debug(`Original URL: ${url}, Token present: ${!!this.githubToken}`);
+        if (!this.githubToken) {
+            return url;
+        }
+        if (url.startsWith('git@github.com:')) {
+            const path = url.replace('git@github.com:', '');
+            const authUrl = `https://x-access-token:${this.githubToken}@github.com/${path}`;
+            this.logger.debug(`Transformed URL: https://x-access-token:****@github.com/${path}`);
+            return authUrl;
+        }
+        if (url.startsWith('https://github.com/')) {
+            const path = url.replace('https://github.com/', '');
+            const authUrl = `https://x-access-token:${this.githubToken}@github.com/${path}`;
+            this.logger.debug(`Transformed URL: https://x-access-token:****@github.com/${path}`);
+            return authUrl;
+        }
+        return url;
+    }
     getRepoPath(id) {
         const repo = this.repos.get(id);
         return repo?.path || null;
+    }
+    async getAvailableRepos() {
+        if (!this.githubToken) {
+            throw new Error('GitHub token not configured');
+        }
+        const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+            headers: {
+                Authorization: `Bearer ${this.githubToken}`,
+                Accept: 'application/vnd.github.v3+json',
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+        const repos = await response.json();
+        return repos.map((r) => ({
+            name: r.name,
+            full_name: r.full_name,
+            clone_url: r.clone_url,
+            private: r.private,
+            description: r.description,
+        }));
     }
 };
 exports.ReposService = ReposService;

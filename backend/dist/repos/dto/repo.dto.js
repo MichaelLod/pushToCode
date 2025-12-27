@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RepoListResponseDto = exports.RepoResponseDto = exports.CloneRepoDto = void 0;
+exports.AvailableReposResponseDto = exports.GitHubRepoDto = exports.RepoListResponseDto = exports.RepoResponseDto = exports.CloneRepoDto = void 0;
 const class_validator_1 = require("class-validator");
 class CloneRepoDto {
     url;
@@ -49,4 +49,17 @@ class RepoListResponseDto {
     total;
 }
 exports.RepoListResponseDto = RepoListResponseDto;
+class GitHubRepoDto {
+    name;
+    full_name;
+    clone_url;
+    private;
+    description;
+}
+exports.GitHubRepoDto = GitHubRepoDto;
+class AvailableReposResponseDto {
+    repos;
+    total;
+}
+exports.AvailableReposResponseDto = AvailableReposResponseDto;
 //# sourceMappingURL=repo.dto.js.map

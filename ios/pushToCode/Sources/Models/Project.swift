@@ -35,3 +35,26 @@ struct CloneRepoRequest: Codable {
     let name: String?
     let branch: String?
 }
+
+struct GitHubRepo: Identifiable, Codable {
+    let name: String
+    let fullName: String
+    let cloneUrl: String
+    let isPrivate: Bool
+    let description: String?
+
+    var id: String { fullName }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case fullName = "full_name"
+        case cloneUrl = "clone_url"
+        case isPrivate = "private"
+        case description
+    }
+}
+
+struct GitHubReposResponse: Codable {
+    let repos: [GitHubRepo]
+    let total: Int
+}
