@@ -10,20 +10,26 @@ else
 fi
 
 echo "=== Claude Code Backend Startup ==="
+echo "GITHUB_TOKEN present: $([ -n "$GITHUB_TOKEN" ] && echo 'yes' || echo 'no')"
+echo "CLAUDE_CODE_OAUTH_TOKEN present: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo 'yes' || echo 'no')"
 
 # Clone or update Claude settings (optional - don't fail if private repo)
 if [ -d "$CLAUDE_DIR/settings-repo" ]; then
   echo "Updating Claude settings..."
-  cd "$CLAUDE_DIR/settings-repo" && git pull --quiet 2>/dev/null || echo "Could not update settings (may be offline)"
+  cd "$CLAUDE_DIR/settings-repo" && git pull 2>&1 || echo "Could not update settings"
   cd /app
 else
   echo "Cloning Claude settings..."
-  if git clone --quiet "$SETTINGS_REPO" "$CLAUDE_DIR/settings-repo" 2>/dev/null; then
+  if git clone "$SETTINGS_REPO" "$CLAUDE_DIR/settings-repo" 2>&1; then
     echo "Settings cloned successfully."
   else
-    echo "Could not clone settings repo (private or unavailable). Continuing without custom settings."
+    echo "Could not clone settings repo. Error above."
   fi
 fi
+
+# Show what's in .claude dir
+echo "Contents of $CLAUDE_DIR:"
+ls -la "$CLAUDE_DIR" 2>/dev/null || echo "Directory not accessible"
 
 # Copy settings if repo exists
 if [ -d "$CLAUDE_DIR/settings-repo" ]; then

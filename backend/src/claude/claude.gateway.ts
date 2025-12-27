@@ -124,12 +124,9 @@ export class ClaudeGateway
     const clientId = client.clientId;
     this.logger.log(`Client disconnected: ${clientId}`);
 
-    // Clean up sessions for this client
-    if (client.sessionIds) {
-      for (const sessionId of client.sessionIds) {
-        this.claudeService.destroySession(sessionId);
-      }
-    }
+    // Don't destroy sessions immediately - client may reconnect
+    // Sessions will be cleaned up when a new session with same ID is created
+    // or when the server restarts
 
     this.clients.delete(clientId);
   }

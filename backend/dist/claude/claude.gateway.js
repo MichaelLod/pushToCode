@@ -90,11 +90,6 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
     async handleDisconnect(client) {
         const clientId = client.clientId;
         this.logger.log(`Client disconnected: ${clientId}`);
-        if (client.sessionIds) {
-            for (const sessionId of client.sessionIds) {
-                this.claudeService.destroySession(sessionId);
-            }
-        }
         this.clients.delete(clientId);
     }
     async handleMessage(client, rawData) {
