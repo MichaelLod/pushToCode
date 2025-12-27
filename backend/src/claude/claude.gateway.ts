@@ -5,7 +5,7 @@ import {
   OnGatewayDisconnect,
   OnGatewayInit,
 } from '@nestjs/websockets';
-import { Server } from 'ws';
+import { Server, WebSocket } from 'ws';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClaudeService, ClaudeOutput } from './claude.service';
@@ -19,6 +19,9 @@ interface AuthenticatedWebSocket extends WebSocket {
   clientId: string;
   sessionIds: Set<string>;
 }
+
+// WebSocket ready state constant
+const WS_OPEN = 1;
 
 @WebSocketGateway({
   cors: {
@@ -95,12 +98,12 @@ export class ClaudeGateway
     this.logger.log(`Client connected: ${clientId}`);
 
     // Setup message handler
-    client.addEventListener('message', (event) => {
-      this.handleMessage(client, event.data.toString());
+    client.on('message', (data) => {
+      this.handleMessage(client, data.toString());
     });
 
     // Handle pong responses
-    client.addEventListener('pong', () => {
+    client.on('pong', () => {
       client.isAlive = true;
     });
   }
@@ -262,7 +265,7 @@ export class ClaudeGateway
 
   private sendMessage(client: AuthenticatedWebSocket, message: any): void {
     try {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WS_OPEN) {
         client.send(JSON.stringify(message));
       }
     } catch (error) {
