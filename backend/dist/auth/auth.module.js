@@ -10,15 +10,14 @@ exports.AuthModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const api_key_guard_1 = require("./guards/api-key.guard");
-const ws_api_key_guard_1 = require("./guards/ws-api-key.guard");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [config_1.ConfigModule],
-        providers: [api_key_guard_1.ApiKeyGuard, ws_api_key_guard_1.WsApiKeyGuard],
-        exports: [api_key_guard_1.ApiKeyGuard, ws_api_key_guard_1.WsApiKeyGuard],
+        providers: [api_key_guard_1.ApiKeyGuard],
+        exports: [api_key_guard_1.ApiKeyGuard],
     })
 ], AuthModule);
 //# sourceMappingURL=auth.module.js.map

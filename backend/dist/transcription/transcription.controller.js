@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var TranscriptionController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TranscriptionController = void 0;
 const common_1 = require("@nestjs/common");
@@ -18,19 +19,24 @@ const platform_express_1 = require("@nestjs/platform-express");
 const api_key_guard_1 = require("../auth/guards/api-key.guard");
 const transcription_service_1 = require("./transcription.service");
 const transcribe_dto_1 = require("./dto/transcribe.dto");
-let TranscriptionController = class TranscriptionController {
+let TranscriptionController = TranscriptionController_1 = class TranscriptionController {
     transcriptionService;
+    logger = new common_1.Logger(TranscriptionController_1.name);
     constructor(transcriptionService) {
         this.transcriptionService = transcriptionService;
     }
     async transcribe(file, dto) {
+        this.logger.log(`Transcription request received: file=${file?.originalname}, size=${file?.size} bytes`);
         if (!file) {
+            this.logger.warn('Transcription request missing audio file');
             throw new common_1.BadRequestException('Audio file is required');
         }
-        return this.transcriptionService.transcribe(file.buffer, file.originalname, {
+        const result = await this.transcriptionService.transcribe(file.buffer, file.originalname, {
             language: dto.language,
             prompt: dto.prompt,
         });
+        this.logger.log(`Transcription complete: "${result.text.substring(0, 50)}..."`);
+        return result;
     }
 };
 exports.TranscriptionController = TranscriptionController;
@@ -64,7 +70,7 @@ __decorate([
     __metadata("design:paramtypes", [Object, transcribe_dto_1.TranscribeDto]),
     __metadata("design:returntype", Promise)
 ], TranscriptionController.prototype, "transcribe", null);
-exports.TranscriptionController = TranscriptionController = __decorate([
+exports.TranscriptionController = TranscriptionController = TranscriptionController_1 = __decorate([
     (0, common_1.Controller)('transcribe'),
     (0, common_1.UseGuards)(api_key_guard_1.ApiKeyGuard),
     __metadata("design:paramtypes", [transcription_service_1.TranscriptionService])

@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
 export interface ClaudeOutput {
@@ -8,8 +9,10 @@ export interface ClaudeOutput {
     isFinal?: boolean;
 }
 export declare class ClaudeService {
+    private configService;
     private readonly logger;
     private sessions;
+    constructor(configService: ConfigService);
     initSession(sessionId: string, projectPath: string): Promise<void>;
     execute(sessionId: string, prompt: string, projectPath: string): Promise<EventEmitter>;
     private parseClaudeOutput;

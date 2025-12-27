@@ -5,15 +5,23 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 var ClaudeService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClaudeService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const child_process_1 = require("child_process");
 const events_1 = require("events");
 let ClaudeService = ClaudeService_1 = class ClaudeService {
+    configService;
     logger = new common_1.Logger(ClaudeService_1.name);
     sessions = new Map();
+    constructor(configService) {
+        this.configService = configService;
+    }
     async initSession(sessionId, projectPath) {
         if (this.sessions.has(sessionId)) {
             this.logger.warn(`Session ${sessionId} already exists, cleaning up`);
@@ -36,10 +44,15 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             session.process.kill('SIGTERM');
         }
         const emitter = session.emitter;
+        const anthropicApiKey = this.configService.get('ANTHROPIC_API_KEY');
+        if (!anthropicApiKey) {
+            this.logger.warn('ANTHROPIC_API_KEY not configured');
+        }
         const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', prompt, '--output-format', 'stream-json'], {
             cwd: projectPath,
             env: {
                 ...process.env,
+                ANTHROPIC_API_KEY: anthropicApiKey || '',
                 FORCE_COLOR: '0',
             },
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -221,6 +234,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
 };
 exports.ClaudeService = ClaudeService;
 exports.ClaudeService = ClaudeService = ClaudeService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [config_1.ConfigService])
 ], ClaudeService);
 //# sourceMappingURL=claude.service.js.map

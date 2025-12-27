@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
@@ -21,6 +22,8 @@ interface SessionData {
 export class ClaudeService {
   private readonly logger = new Logger(ClaudeService.name);
   private sessions: Map<string, SessionData> = new Map();
+
+  constructor(private configService: ConfigService) {}
 
   async initSession(sessionId: string, projectPath: string): Promise<void> {
     if (this.sessions.has(sessionId)) {
@@ -57,6 +60,12 @@ export class ClaudeService {
 
     const emitter = session.emitter;
 
+    // Get API key from config
+    const anthropicApiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+    if (!anthropicApiKey) {
+      this.logger.warn('ANTHROPIC_API_KEY not configured');
+    }
+
     // Spawn Claude CLI process
     const claudeProcess = spawn(
       'claude',
@@ -65,6 +74,7 @@ export class ClaudeService {
         cwd: projectPath,
         env: {
           ...process.env,
+          ANTHROPIC_API_KEY: anthropicApiKey || '',
           FORCE_COLOR: '0',
         },
         stdio: ['pipe', 'pipe', 'pipe'],

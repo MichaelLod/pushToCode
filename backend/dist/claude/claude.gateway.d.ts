@@ -1,29 +1,33 @@
-import { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit } from '@nestjs/websockets';
+import { Server, WebSocket } from 'ws';
 import { ConfigService } from '@nestjs/config';
 import { ClaudeService } from './claude.service';
-export declare class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+import { IncomingMessage } from 'http';
+interface AuthenticatedWebSocket extends WebSocket {
+    isAlive: boolean;
+    isAuthenticated: boolean;
+    clientId: string;
+    sessionIds: Set<string>;
+}
+export declare class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     private claudeService;
     private configService;
     server: Server;
     private readonly logger;
-    private clientSessions;
+    private clients;
+    private pingInterval;
     constructor(claudeService: ClaudeService, configService: ConfigService);
-    handleConnection(client: Socket): Promise<void>;
-    handleDisconnect(client: Socket): Promise<void>;
-    handleInitSession(client: Socket, data: {
-        sessionId: string;
-        projectId: string;
-    }): Promise<void>;
-    handleExecute(client: Socket, data: {
-        sessionId: string;
-        prompt: string;
-        projectPath: string;
-    }): Promise<void>;
-    handleStop(client: Socket, data: {
-        sessionId: string;
-    }): Promise<void>;
-    handlePing(client: Socket): void;
-    private sendToSession;
+    afterInit(server: Server): void;
+    handleConnection(client: AuthenticatedWebSocket, request: IncomingMessage): Promise<void>;
+    handleDisconnect(client: AuthenticatedWebSocket): Promise<void>;
+    private handleMessage;
+    private handleInitSession;
+    private handleExecute;
+    private handleStop;
+    private handlePing;
+    private sendMessage;
     private sendError;
+    private generateClientId;
+    onModuleDestroy(): void;
 }
+export {};

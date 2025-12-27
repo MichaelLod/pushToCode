@@ -8,52 +8,111 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-};
 var ClaudeGateway_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClaudeGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
-const socket_io_1 = require("socket.io");
+const ws_1 = require("ws");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const claude_service_1 = require("./claude.service");
+const WS_OPEN = 1;
 let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
     claudeService;
     configService;
     server;
     logger = new common_1.Logger(ClaudeGateway_1.name);
-    clientSessions = new Map();
+    clients = new Map();
+    pingInterval;
     constructor(claudeService, configService) {
         this.claudeService = claudeService;
         this.configService = configService;
     }
-    async handleConnection(client) {
-        const apiKey = client.handshake.auth?.apiKey || client.handshake.headers['x-api-key'];
+    afterInit(server) {
+        this.logger.log('WebSocket Gateway initialized');
+        this.pingInterval = setInterval(() => {
+            this.clients.forEach((client, id) => {
+                if (!client.isAlive) {
+                    this.logger.warn(`Client ${id} not responding, terminating`);
+                    client.close();
+                    this.clients.delete(id);
+                    return;
+                }
+                client.isAlive = false;
+                try {
+                    client.send(JSON.stringify({ type: 'ping' }));
+                }
+                catch {
+                }
+            });
+        }, 30000);
+    }
+    async handleConnection(client, request) {
+        const clientId = this.generateClientId();
+        client.clientId = clientId;
+        client.sessionIds = new Set();
+        client.isAlive = true;
+        client.isAuthenticated = false;
+        const apiKey = request.headers['x-api-key'] ||
+            new URL(request.url || '', 'http://localhost').searchParams.get('apiKey');
         const validApiKey = this.configService.get('API_KEY');
         if (!validApiKey || apiKey !== validApiKey) {
-            this.logger.warn(`Unauthorized connection attempt from ${client.id}`);
-            client.emit('error', {
+            this.logger.warn(`Unauthorized connection attempt from ${clientId}`);
+            this.sendMessage(client, {
                 type: 'error',
                 sessionId: '',
                 code: 'UNAUTHORIZED',
                 message: 'Invalid API key',
             });
-            client.disconnect();
+            client.close();
             return;
         }
-        this.logger.log(`Client connected: ${client.id}`);
-        this.clientSessions.set(client.id, new Set());
+        client.isAuthenticated = true;
+        this.clients.set(clientId, client);
+        this.logger.log(`Client connected: ${clientId}`);
+        client.on('message', (data) => {
+            this.handleMessage(client, data.toString());
+        });
+        client.on('pong', () => {
+            client.isAlive = true;
+        });
     }
     async handleDisconnect(client) {
-        this.logger.log(`Client disconnected: ${client.id}`);
-        const sessions = this.clientSessions.get(client.id);
-        if (sessions) {
-            for (const sessionId of sessions) {
+        const clientId = client.clientId;
+        this.logger.log(`Client disconnected: ${clientId}`);
+        if (client.sessionIds) {
+            for (const sessionId of client.sessionIds) {
                 this.claudeService.destroySession(sessionId);
             }
-            this.clientSessions.delete(client.id);
+        }
+        this.clients.delete(clientId);
+    }
+    async handleMessage(client, rawData) {
+        try {
+            const data = JSON.parse(rawData);
+            const { type } = data;
+            switch (type) {
+                case 'init_session':
+                    await this.handleInitSession(client, data);
+                    break;
+                case 'execute':
+                    await this.handleExecute(client, data);
+                    break;
+                case 'stop':
+                    await this.handleStop(client, data);
+                    break;
+                case 'ping':
+                    this.handlePing(client);
+                    break;
+                case 'pong':
+                    client.isAlive = true;
+                    break;
+                default:
+                    this.logger.warn(`Unknown message type: ${type}`);
+            }
+        }
+        catch (error) {
+            this.logger.error(`Error parsing message: ${error.message}`);
         }
     }
     async handleInitSession(client, data) {
@@ -62,16 +121,12 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         try {
             const projectPath = projectId;
             await this.claudeService.initSession(sessionId, projectPath);
-            const sessions = this.clientSessions.get(client.id);
-            if (sessions) {
-                sessions.add(sessionId);
-            }
-            client.join(sessionId);
-            this.sendToSession(client, sessionId, {
+            client.sessionIds.add(sessionId);
+            this.sendMessage(client, {
                 type: 'session_ready',
                 sessionId,
             });
-            this.sendToSession(client, sessionId, {
+            this.sendMessage(client, {
                 type: 'status',
                 sessionId,
                 status: 'idle',
@@ -85,7 +140,7 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         const { sessionId, prompt, projectPath } = data;
         this.logger.log(`Execute in session ${sessionId}: ${prompt.substring(0, 50)}...`);
         try {
-            this.sendToSession(client, sessionId, {
+            this.sendMessage(client, {
                 type: 'status',
                 sessionId,
                 status: 'running',
@@ -93,7 +148,7 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
             const emitter = await this.claudeService.execute(sessionId, prompt, projectPath);
             emitter.on('output', (output) => {
                 if (output.type === 'output') {
-                    this.sendToSession(client, sessionId, {
+                    this.sendMessage(client, {
                         type: 'output',
                         sessionId,
                         content: output.content || '',
@@ -105,7 +160,7 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                     this.sendError(client, sessionId, 'EXECUTION_ERROR', output.content || 'Unknown error');
                 }
                 else if (output.type === 'exit') {
-                    this.sendToSession(client, sessionId, {
+                    this.sendMessage(client, {
                         type: 'status',
                         sessionId,
                         status: 'idle',
@@ -115,7 +170,7 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         }
         catch (error) {
             this.sendError(client, sessionId, 'EXECUTE_FAILED', error.message);
-            this.sendToSession(client, sessionId, {
+            this.sendMessage(client, {
                 type: 'status',
                 sessionId,
                 status: 'idle',
@@ -127,7 +182,7 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         this.logger.log(`Stop session: ${sessionId}`);
         try {
             await this.claudeService.stopSession(sessionId);
-            this.sendToSession(client, sessionId, {
+            this.sendMessage(client, {
                 type: 'status',
                 sessionId,
                 status: 'stopped',
@@ -138,62 +193,46 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         }
     }
     handlePing(client) {
-        client.emit('pong', { timestamp: Date.now() });
+        client.isAlive = true;
+        this.sendMessage(client, { type: 'pong', timestamp: Date.now() });
     }
-    sendToSession(client, sessionId, message) {
-        client.emit('message', message);
+    sendMessage(client, message) {
+        try {
+            if (client.readyState === WS_OPEN) {
+                client.send(JSON.stringify(message));
+            }
+        }
+        catch (error) {
+            this.logger.error(`Error sending message: ${error.message}`);
+        }
     }
     sendError(client, sessionId, code, message) {
-        client.emit('message', {
+        this.sendMessage(client, {
             type: 'error',
             sessionId,
             code,
             message,
         });
     }
+    generateClientId() {
+        return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    onModuleDestroy() {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+        }
+    }
 };
 exports.ClaudeGateway = ClaudeGateway;
 __decorate([
     (0, websockets_1.WebSocketServer)(),
-    __metadata("design:type", socket_io_1.Server)
+    __metadata("design:type", ws_1.Server)
 ], ClaudeGateway.prototype, "server", void 0);
-__decorate([
-    (0, websockets_1.SubscribeMessage)('init_session'),
-    __param(0, (0, websockets_1.ConnectedSocket)()),
-    __param(1, (0, websockets_1.MessageBody)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
-    __metadata("design:returntype", Promise)
-], ClaudeGateway.prototype, "handleInitSession", null);
-__decorate([
-    (0, websockets_1.SubscribeMessage)('execute'),
-    __param(0, (0, websockets_1.ConnectedSocket)()),
-    __param(1, (0, websockets_1.MessageBody)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
-    __metadata("design:returntype", Promise)
-], ClaudeGateway.prototype, "handleExecute", null);
-__decorate([
-    (0, websockets_1.SubscribeMessage)('stop'),
-    __param(0, (0, websockets_1.ConnectedSocket)()),
-    __param(1, (0, websockets_1.MessageBody)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
-    __metadata("design:returntype", Promise)
-], ClaudeGateway.prototype, "handleStop", null);
-__decorate([
-    (0, websockets_1.SubscribeMessage)('ping'),
-    __param(0, (0, websockets_1.ConnectedSocket)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [socket_io_1.Socket]),
-    __metadata("design:returntype", void 0)
-], ClaudeGateway.prototype, "handlePing", null);
 exports.ClaudeGateway = ClaudeGateway = ClaudeGateway_1 = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
             origin: '*',
         },
-        transports: ['websocket', 'polling'],
     }),
     __metadata("design:paramtypes", [claude_service_1.ClaudeService,
         config_1.ConfigService])
