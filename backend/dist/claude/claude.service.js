@@ -112,7 +112,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return emitter;
         }
         const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        this.logger.log(`Spawning Claude CLI (OAuth token: ${hasOAuthToken ? 'yes' : 'NO'})`);
+        const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+        const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+        this.logger.log(`Spawning Claude CLI (CLAUDE_CODE_OAUTH_TOKEN: ${hasOAuthToken}, ANTHROPIC_AUTH_TOKEN: ${hasAuthToken}, ANTHROPIC_API_KEY: ${hasApiKey})`);
         this.logger.log(`Working directory: ${projectPath}`);
         const args = [
             '-p', prompt,
@@ -132,9 +134,17 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
         session.process = claudeProcess;
+        const startupTimeout = setTimeout(() => {
+            this.logger.warn(`Claude process ${claudeProcess.pid} produced no output after 30s - may be hanging`);
+        }, 30000);
         let buffer = '';
+        let hasReceivedOutput = false;
         const currentOutputType = 'text';
         claudeProcess.stdout?.on('data', (data) => {
+            if (!hasReceivedOutput) {
+                hasReceivedOutput = true;
+                clearTimeout(startupTimeout);
+            }
             const chunk = data.toString();
             this.logger.log(`Claude stdout (${chunk.length} bytes): ${chunk.substring(0, 200)}...`);
             buffer += chunk;
@@ -162,6 +172,10 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             }
         });
         claudeProcess.stderr?.on('data', (data) => {
+            if (!hasReceivedOutput) {
+                hasReceivedOutput = true;
+                clearTimeout(startupTimeout);
+            }
             const content = data.toString();
             this.logger.warn(`Claude stderr (${content.length} bytes): ${content.substring(0, 500)}`);
             const authUrl = this.extractAuthUrl(content);
@@ -182,6 +196,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             });
         });
         claudeProcess.on('close', (code) => {
+            clearTimeout(startupTimeout);
             this.logger.log(`Claude process exited with code ${code}`);
             if (code === 0) {
                 this.isAuthenticated = true;
