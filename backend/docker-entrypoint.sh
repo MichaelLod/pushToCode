@@ -34,11 +34,19 @@ ls -la "$CLAUDE_DIR" 2>/dev/null || echo "Directory not accessible"
 # Copy settings if repo exists
 if [ -d "$CLAUDE_DIR/settings-repo" ]; then
   echo "Installing Claude settings..."
-  cp -f "$CLAUDE_DIR/settings-repo/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null || true
-  cp -f "$CLAUDE_DIR/settings-repo/settings.json" "$CLAUDE_DIR/settings.json" 2>/dev/null || true
-  cp -rf "$CLAUDE_DIR/settings-repo/agents" "$CLAUDE_DIR/" 2>/dev/null || true
-  cp -rf "$CLAUDE_DIR/settings-repo/hooks" "$CLAUDE_DIR/" 2>/dev/null || true
-  chmod +x "$CLAUDE_DIR/hooks"/*.sh 2>/dev/null || true
+  echo "Source repo contents:"
+  ls -la "$CLAUDE_DIR/settings-repo/"
+
+  cp -f "$CLAUDE_DIR/settings-repo/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null || echo "  - CLAUDE.md: failed"
+  cp -f "$CLAUDE_DIR/settings-repo/settings.json" "$CLAUDE_DIR/settings.json" 2>/dev/null || echo "  - settings.json: failed"
+  cp -rf "$CLAUDE_DIR/settings-repo/agents" "$CLAUDE_DIR/" 2>/dev/null || echo "  - agents/: failed"
+  cp -rf "$CLAUDE_DIR/settings-repo/hooks" "$CLAUDE_DIR/" 2>/dev/null || echo "  - hooks/: failed"
+  chmod +x "$CLAUDE_DIR/hooks"/*.sh 2>/dev/null || echo "  - chmod hooks: failed"
+
+  echo "Installed files in $CLAUDE_DIR:"
+  ls -la "$CLAUDE_DIR/"
+  echo "Hooks directory:"
+  ls -la "$CLAUDE_DIR/hooks/" 2>/dev/null || echo "  (no hooks directory)"
   echo "Claude settings installed."
 else
   echo "No custom settings available."
