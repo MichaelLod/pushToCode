@@ -76,6 +76,16 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         client.on('pong', () => {
             client.isAlive = true;
         });
+        const pendingAuthUrl = this.claudeService.getPendingAuthUrl();
+        if (pendingAuthUrl) {
+            this.logger.log(`Sending pending auth URL to client: ${clientId}`);
+            this.sendMessage(client, {
+                type: 'auth_required',
+                sessionId: '',
+                authUrl: pendingAuthUrl,
+                message: 'Claude requires authentication. Please log in to continue.',
+            });
+        }
     }
     async handleDisconnect(client) {
         const clientId = client.clientId;

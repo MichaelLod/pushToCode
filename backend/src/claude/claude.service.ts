@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
 
@@ -20,11 +20,75 @@ interface SessionData {
 }
 
 @Injectable()
-export class ClaudeService {
+export class ClaudeService implements OnModuleInit {
   private readonly logger = new Logger(ClaudeService.name);
   private sessions: Map<string, SessionData> = new Map();
+  private pendingAuthUrl: string | null = null;
+  private isAuthenticated = false;
 
   constructor(private configService: ConfigService) {}
+
+  async onModuleInit(): Promise<void> {
+    // Check Claude auth status on startup
+    await this.checkAuthStatus();
+  }
+
+  private async checkAuthStatus(): Promise<void> {
+    this.logger.log('Checking Claude authentication status...');
+
+    try {
+      // Run a simple claude command to check if auth is needed
+      const claudeProcess = spawn('claude', ['-p', 'echo test', '--output-format', 'json'], {
+        cwd: '/tmp',
+        env: {
+          ...process.env,
+          FORCE_COLOR: '0',
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderrOutput = '';
+
+      claudeProcess.stderr?.on('data', (data: Buffer) => {
+        stderrOutput += data.toString();
+      });
+
+      claudeProcess.on('close', (code) => {
+        // Check if auth URL was output
+        const authUrl = this.extractAuthUrl(stderrOutput);
+        if (authUrl) {
+          this.pendingAuthUrl = authUrl;
+          this.isAuthenticated = false;
+          this.logger.warn(`Claude requires authentication. Auth URL: ${authUrl}`);
+        } else if (code === 0) {
+          this.isAuthenticated = true;
+          this.pendingAuthUrl = null;
+          this.logger.log('Claude is authenticated and ready');
+        } else {
+          this.logger.warn(`Claude auth check exited with code ${code}`);
+        }
+      });
+
+      claudeProcess.on('error', (error) => {
+        this.logger.error(`Failed to check Claude auth: ${error.message}`);
+      });
+    } catch (error) {
+      this.logger.error(`Error checking Claude auth status: ${error.message}`);
+    }
+  }
+
+  getPendingAuthUrl(): string | null {
+    return this.pendingAuthUrl;
+  }
+
+  isClaudeAuthenticated(): boolean {
+    return this.isAuthenticated;
+  }
+
+  clearPendingAuth(): void {
+    this.pendingAuthUrl = null;
+    this.isAuthenticated = true;
+  }
 
   async initSession(sessionId: string, projectPath: string): Promise<void> {
     if (this.sessions.has(sessionId)) {
@@ -61,13 +125,17 @@ export class ClaudeService {
 
     const emitter = session.emitter;
 
-    // Get API key from config
-    const anthropicApiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    if (!anthropicApiKey) {
-      this.logger.warn('ANTHROPIC_API_KEY not configured');
+    // Check if we have a pending auth URL - if so, emit it immediately
+    if (this.pendingAuthUrl) {
+      emitter.emit('output', {
+        type: 'auth_required',
+        content: 'Claude requires authentication',
+        authUrl: this.pendingAuthUrl,
+      });
+      return emitter;
     }
 
-    // Spawn Claude CLI process
+    // Spawn Claude CLI process (uses OAuth, no API key needed)
     const claudeProcess = spawn(
       'claude',
       ['-p', prompt, '--output-format', 'stream-json'],
@@ -75,7 +143,6 @@ export class ClaudeService {
         cwd: projectPath,
         env: {
           ...process.env,
-          ANTHROPIC_API_KEY: anthropicApiKey || '',
           FORCE_COLOR: '0',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -123,6 +190,8 @@ export class ClaudeService {
       // Check for auth URL in stderr
       const authUrl = this.extractAuthUrl(content);
       if (authUrl) {
+        this.pendingAuthUrl = authUrl;
+        this.isAuthenticated = false;
         this.logger.log(`Auth required, URL: ${authUrl}`);
         emitter.emit('output', {
           type: 'auth_required',
@@ -140,6 +209,12 @@ export class ClaudeService {
 
     claudeProcess.on('close', (code) => {
       this.logger.log(`Claude process exited with code ${code}`);
+
+      // If successful, mark as authenticated
+      if (code === 0) {
+        this.isAuthenticated = true;
+        this.pendingAuthUrl = null;
+      }
 
       // Process any remaining buffer
       if (buffer.trim()) {

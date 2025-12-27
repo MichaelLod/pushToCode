@@ -1,3 +1,4 @@
+import { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
@@ -9,11 +10,18 @@ export interface ClaudeOutput {
     isFinal?: boolean;
     authUrl?: string;
 }
-export declare class ClaudeService {
+export declare class ClaudeService implements OnModuleInit {
     private configService;
     private readonly logger;
     private sessions;
+    private pendingAuthUrl;
+    private isAuthenticated;
     constructor(configService: ConfigService);
+    onModuleInit(): Promise<void>;
+    private checkAuthStatus;
+    getPendingAuthUrl(): string | null;
+    isClaudeAuthenticated(): boolean;
+    clearPendingAuth(): void;
     initSession(sessionId: string, projectPath: string): Promise<void>;
     execute(sessionId: string, prompt: string, projectPath: string): Promise<EventEmitter>;
     private parseClaudeOutput;

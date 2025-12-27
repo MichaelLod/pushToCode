@@ -106,6 +106,18 @@ export class ClaudeGateway
     client.on('pong', () => {
       client.isAlive = true;
     });
+
+    // Check if Claude requires authentication and notify client
+    const pendingAuthUrl = this.claudeService.getPendingAuthUrl();
+    if (pendingAuthUrl) {
+      this.logger.log(`Sending pending auth URL to client: ${clientId}`);
+      this.sendMessage(client, {
+        type: 'auth_required',
+        sessionId: '',
+        authUrl: pendingAuthUrl,
+        message: 'Claude requires authentication. Please log in to continue.',
+      });
+    }
   }
 
   async handleDisconnect(client: AuthenticatedWebSocket): Promise<void> {

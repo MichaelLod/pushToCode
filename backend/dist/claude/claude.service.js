@@ -19,8 +19,62 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
     configService;
     logger = new common_1.Logger(ClaudeService_1.name);
     sessions = new Map();
+    pendingAuthUrl = null;
+    isAuthenticated = false;
     constructor(configService) {
         this.configService = configService;
+    }
+    async onModuleInit() {
+        await this.checkAuthStatus();
+    }
+    async checkAuthStatus() {
+        this.logger.log('Checking Claude authentication status...');
+        try {
+            const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', 'echo test', '--output-format', 'json'], {
+                cwd: '/tmp',
+                env: {
+                    ...process.env,
+                    FORCE_COLOR: '0',
+                },
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            let stderrOutput = '';
+            claudeProcess.stderr?.on('data', (data) => {
+                stderrOutput += data.toString();
+            });
+            claudeProcess.on('close', (code) => {
+                const authUrl = this.extractAuthUrl(stderrOutput);
+                if (authUrl) {
+                    this.pendingAuthUrl = authUrl;
+                    this.isAuthenticated = false;
+                    this.logger.warn(`Claude requires authentication. Auth URL: ${authUrl}`);
+                }
+                else if (code === 0) {
+                    this.isAuthenticated = true;
+                    this.pendingAuthUrl = null;
+                    this.logger.log('Claude is authenticated and ready');
+                }
+                else {
+                    this.logger.warn(`Claude auth check exited with code ${code}`);
+                }
+            });
+            claudeProcess.on('error', (error) => {
+                this.logger.error(`Failed to check Claude auth: ${error.message}`);
+            });
+        }
+        catch (error) {
+            this.logger.error(`Error checking Claude auth status: ${error.message}`);
+        }
+    }
+    getPendingAuthUrl() {
+        return this.pendingAuthUrl;
+    }
+    isClaudeAuthenticated() {
+        return this.isAuthenticated;
+    }
+    clearPendingAuth() {
+        this.pendingAuthUrl = null;
+        this.isAuthenticated = true;
     }
     async initSession(sessionId, projectPath) {
         if (this.sessions.has(sessionId)) {
@@ -44,15 +98,18 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             session.process.kill('SIGTERM');
         }
         const emitter = session.emitter;
-        const anthropicApiKey = this.configService.get('ANTHROPIC_API_KEY');
-        if (!anthropicApiKey) {
-            this.logger.warn('ANTHROPIC_API_KEY not configured');
+        if (this.pendingAuthUrl) {
+            emitter.emit('output', {
+                type: 'auth_required',
+                content: 'Claude requires authentication',
+                authUrl: this.pendingAuthUrl,
+            });
+            return emitter;
         }
         const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', prompt, '--output-format', 'stream-json'], {
             cwd: projectPath,
             env: {
                 ...process.env,
-                ANTHROPIC_API_KEY: anthropicApiKey || '',
                 FORCE_COLOR: '0',
             },
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -90,6 +147,8 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             this.logger.error(`Claude stderr: ${content}`);
             const authUrl = this.extractAuthUrl(content);
             if (authUrl) {
+                this.pendingAuthUrl = authUrl;
+                this.isAuthenticated = false;
                 this.logger.log(`Auth required, URL: ${authUrl}`);
                 emitter.emit('output', {
                     type: 'auth_required',
@@ -105,6 +164,10 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         claudeProcess.on('close', (code) => {
             this.logger.log(`Claude process exited with code ${code}`);
+            if (code === 0) {
+                this.isAuthenticated = true;
+                this.pendingAuthUrl = null;
+            }
             if (buffer.trim()) {
                 emitter.emit('output', {
                     type: 'output',
