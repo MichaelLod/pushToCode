@@ -1,7 +1,13 @@
 #!/bin/sh
 
 CLAUDE_DIR="/root/.claude"
-SETTINGS_REPO="${CLAUDE_SETTINGS_REPO:-https://github.com/MichaelLod/claude-settings.git}"
+
+# Build settings repo URL with token if available
+if [ -n "$GITHUB_TOKEN" ]; then
+  SETTINGS_REPO="https://${GITHUB_TOKEN}@github.com/MichaelLod/claude-settings.git"
+else
+  SETTINGS_REPO="${CLAUDE_SETTINGS_REPO:-https://github.com/MichaelLod/claude-settings.git}"
+fi
 
 echo "=== Claude Code Backend Startup ==="
 
@@ -11,7 +17,7 @@ if [ -d "$CLAUDE_DIR/settings-repo" ]; then
   cd "$CLAUDE_DIR/settings-repo" && git pull --quiet 2>/dev/null || echo "Could not update settings (may be offline)"
   cd /app
 else
-  echo "Cloning Claude settings from $SETTINGS_REPO..."
+  echo "Cloning Claude settings..."
   if git clone --quiet "$SETTINGS_REPO" "$CLAUDE_DIR/settings-repo" 2>/dev/null; then
     echo "Settings cloned successfully."
   else
