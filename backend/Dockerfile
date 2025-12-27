@@ -23,6 +23,15 @@ WORKDIR /app
 # Install git (required for git clone operations)
 RUN apk add --no-cache git
 
+# Create repos directory for volume mount
+RUN mkdir -p /repos
+
+# Set default repos path (can be overridden with -e REPOS_PATH=...)
+ENV REPOS_PATH=/repos
+
+# Declare volume for repo persistence
+VOLUME /repos
+
 # Copy package files
 COPY package*.json ./
 
