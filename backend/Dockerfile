@@ -39,6 +39,11 @@ ENV REPOS_PATH=/repos
 # Set Claude home for credential storage
 ENV CLAUDE_CONFIG_DIR=/root/.claude
 
+# Authentication: Set CLAUDE_CODE_OAUTH_TOKEN environment variable
+# Get your token by running locally:
+#   security find-generic-password -s "Claude Code-credentials" -w | jq -r '.claudeAiOauth.accessToken'
+# Then pass to Docker: -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+
 # Set Node.js memory limit to 16GB
 ENV NODE_OPTIONS="--max-old-space-size=16384"
 
