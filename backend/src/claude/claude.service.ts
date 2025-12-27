@@ -38,11 +38,16 @@ export class ClaudeService implements OnModuleInit {
 
     try {
       // Run a simple claude command to check if auth is needed
-      const claudeProcess = spawn('claude', ['-p', 'echo test', '--output-format', 'json'], {
+      const claudeProcess = spawn('claude', [
+        '-p', 'echo test',
+        '--output-format', 'json',
+        '--dangerously-skip-permissions',
+      ], {
         cwd: '/tmp',
         env: {
           ...process.env,
           FORCE_COLOR: '0',
+          CI: '1',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -140,19 +145,24 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Spawning Claude CLI (OAuth token: ${hasOAuthToken ? 'yes' : 'NO'})`);
     this.logger.log(`Working directory: ${projectPath}`);
 
-    // Spawn Claude CLI process (uses OAuth, no API key needed)
-    const claudeProcess = spawn(
-      'claude',
-      ['-p', prompt, '--output-format', 'stream-json'],
-      {
-        cwd: projectPath,
-        env: {
-          ...process.env,
-          FORCE_COLOR: '0',
-        },
-        stdio: ['pipe', 'pipe', 'pipe'],
+    // Spawn Claude CLI process with headless flags
+    const args = [
+      '-p', prompt,
+      '--output-format', 'stream-json',
+      '--dangerously-skip-permissions',  // Required for Docker/headless
+      '--verbose',  // More output for debugging
+    ];
+    this.logger.log(`Claude args: ${args.join(' ')}`);
+
+    const claudeProcess = spawn('claude', args, {
+      cwd: projectPath,
+      env: {
+        ...process.env,
+        FORCE_COLOR: '0',
+        CI: '1',  // Hint that we're in non-interactive mode
       },
-    );
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
     this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
 

@@ -30,11 +30,16 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
     async checkAuthStatus() {
         this.logger.log('Checking Claude authentication status...');
         try {
-            const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', 'echo test', '--output-format', 'json'], {
+            const claudeProcess = (0, child_process_1.spawn)('claude', [
+                '-p', 'echo test',
+                '--output-format', 'json',
+                '--dangerously-skip-permissions',
+            ], {
                 cwd: '/tmp',
                 env: {
                     ...process.env,
                     FORCE_COLOR: '0',
+                    CI: '1',
                 },
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -109,11 +114,19 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
         this.logger.log(`Spawning Claude CLI (OAuth token: ${hasOAuthToken ? 'yes' : 'NO'})`);
         this.logger.log(`Working directory: ${projectPath}`);
-        const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', prompt, '--output-format', 'stream-json'], {
+        const args = [
+            '-p', prompt,
+            '--output-format', 'stream-json',
+            '--dangerously-skip-permissions',
+            '--verbose',
+        ];
+        this.logger.log(`Claude args: ${args.join(' ')}`);
+        const claudeProcess = (0, child_process_1.spawn)('claude', args, {
             cwd: projectPath,
             env: {
                 ...process.env,
                 FORCE_COLOR: '0',
+                CI: '1',
             },
             stdio: ['pipe', 'pipe', 'pipe'],
         });
