@@ -20,8 +20,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Install git (required for git clone operations)
-RUN apk add --no-cache git
+# Install git and bash (required for git clone and hooks)
+RUN apk add --no-cache git bash
 
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code

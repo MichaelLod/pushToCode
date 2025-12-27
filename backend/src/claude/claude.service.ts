@@ -43,6 +43,8 @@ export class ClaudeService implements OnModuleInit {
         '-p', 'echo test',
         '--output-format', 'json',
         '--dangerously-skip-permissions',
+        '--debug', 'api,auth',
+        '--verbose',
       ], {
         cwd: '/tmp',
         env: {
@@ -54,9 +56,18 @@ export class ClaudeService implements OnModuleInit {
       });
 
       let stderrOutput = '';
+      let stdoutOutput = '';
+
+      claudeProcess.stdout?.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        stdoutOutput += chunk;
+        this.logger.log(`Auth check stdout: ${chunk.substring(0, 500)}`);
+      });
 
       claudeProcess.stderr?.on('data', (data: Buffer) => {
-        stderrOutput += data.toString();
+        const chunk = data.toString();
+        stderrOutput += chunk;
+        this.logger.log(`Auth check stderr: ${chunk.substring(0, 500)}`);
       });
 
       claudeProcess.on('close', (code) => {
@@ -153,6 +164,8 @@ export class ClaudeService implements OnModuleInit {
       '-p', prompt,
       '--output-format', 'stream-json',
       '--dangerously-skip-permissions',  // Required for Docker/headless
+      '--debug', 'api,auth',  // Debug API and auth issues
+      '--verbose',
     ];
 
     // Resume previous conversation if we have a Claude session ID
