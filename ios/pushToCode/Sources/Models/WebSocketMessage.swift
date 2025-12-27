@@ -27,6 +27,10 @@ struct StopMessage: Codable {
     let sessionId: String
 }
 
+struct PongMessage: Codable {
+    var type: String = "pong"
+}
+
 // MARK: - Server to Client Messages
 
 enum ServerMessageType: String, Codable {
@@ -34,6 +38,7 @@ enum ServerMessageType: String, Codable {
     case status
     case output
     case error
+    case ping
     case pong
 }
 

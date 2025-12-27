@@ -22,7 +22,14 @@ final class TerminalViewModel: ObservableObject {
         webSocketService.$isConnected
             .receive(on: DispatchQueue.main)
             .sink { [weak self] connected in
-                self?.isConnected = connected
+                guard let self = self else { return }
+                let wasDisconnected = !self.isConnected
+                self.isConnected = connected
+
+                // Auto-initialize session when connection is established
+                if connected && wasDisconnected {
+                    self.initializeSession()
+                }
             }
             .store(in: &cancellables)
 
@@ -123,6 +130,10 @@ final class TerminalViewModel: ObservableObject {
         case .error:
             errorMessage = message.message ?? "Unknown error"
             session.status = .idle
+
+        case .ping:
+            // Server ping - respond with pong to keep connection alive
+            webSocketService.send(PongMessage())
 
         case .pong:
             // Heartbeat response, no action needed

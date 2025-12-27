@@ -1,10 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
+  // Use native WebSocket adapter (instead of Socket.IO)
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   // Enable CORS for iOS app
   app.enableCors({

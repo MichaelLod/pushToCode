@@ -29,6 +29,9 @@ RUN mkdir -p /repos
 # Set default repos path (can be overridden with -e REPOS_PATH=...)
 ENV REPOS_PATH=/repos
 
+# Set Node.js memory limit to 16GB
+ENV NODE_OPTIONS="--max-old-space-size=16384"
+
 # Copy package files
 COPY package*.json ./
 

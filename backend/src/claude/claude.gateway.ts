@@ -1,103 +1,175 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  MessageBody,
-  ConnectedSocket,
+  OnGatewayInit,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Server } from 'ws';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClaudeService, ClaudeOutput } from './claude.service';
-import {
-  ClientMessage,
-  ServerMessage,
-  SessionStatus,
-} from '../common/interfaces/websocket.interface';
+import { IncomingMessage } from 'http';
+import { ServerMessage } from '../common/interfaces/websocket.interface';
+
+// Extended WebSocket type with custom properties
+interface AuthenticatedWebSocket extends WebSocket {
+  isAlive: boolean;
+  isAuthenticated: boolean;
+  clientId: string;
+  sessionIds: Set<string>;
+}
 
 @WebSocketGateway({
   cors: {
     origin: '*',
   },
-  transports: ['websocket', 'polling'],
 })
-export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ClaudeGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(ClaudeGateway.name);
-  private clientSessions: Map<string, Set<string>> = new Map(); // socketId -> sessionIds
+  private clients: Map<string, AuthenticatedWebSocket> = new Map();
+  private pingInterval: NodeJS.Timeout;
 
   constructor(
     private claudeService: ClaudeService,
     private configService: ConfigService,
   ) {}
 
-  async handleConnection(client: Socket): Promise<void> {
+  afterInit(server: Server): void {
+    this.logger.log('WebSocket Gateway initialized');
+
+    // Setup ping interval to keep connections alive
+    this.pingInterval = setInterval(() => {
+      this.clients.forEach((client, id) => {
+        if (!client.isAlive) {
+          this.logger.warn(`Client ${id} not responding, terminating`);
+          client.close();
+          this.clients.delete(id);
+          return;
+        }
+        client.isAlive = false;
+        try {
+          client.send(JSON.stringify({ type: 'ping' }));
+        } catch {
+          // Client disconnected
+        }
+      });
+    }, 30000);
+  }
+
+  async handleConnection(
+    client: AuthenticatedWebSocket,
+    request: IncomingMessage,
+  ): Promise<void> {
+    const clientId = this.generateClientId();
+    client.clientId = clientId;
+    client.sessionIds = new Set();
+    client.isAlive = true;
+    client.isAuthenticated = false;
+
+    // Check API key from headers
     const apiKey =
-      client.handshake.auth?.apiKey || client.handshake.headers['x-api-key'];
+      request.headers['x-api-key'] ||
+      new URL(request.url || '', 'http://localhost').searchParams.get('apiKey');
     const validApiKey = this.configService.get<string>('API_KEY');
 
     if (!validApiKey || apiKey !== validApiKey) {
-      this.logger.warn(`Unauthorized connection attempt from ${client.id}`);
-      client.emit('error', {
+      this.logger.warn(`Unauthorized connection attempt from ${clientId}`);
+      this.sendMessage(client, {
         type: 'error',
         sessionId: '',
         code: 'UNAUTHORIZED',
         message: 'Invalid API key',
       });
-      client.disconnect();
+      client.close();
       return;
     }
 
-    this.logger.log(`Client connected: ${client.id}`);
-    this.clientSessions.set(client.id, new Set());
+    client.isAuthenticated = true;
+    this.clients.set(clientId, client);
+    this.logger.log(`Client connected: ${clientId}`);
+
+    // Setup message handler
+    client.addEventListener('message', (event) => {
+      this.handleMessage(client, event.data.toString());
+    });
+
+    // Handle pong responses
+    client.addEventListener('pong', () => {
+      client.isAlive = true;
+    });
   }
 
-  async handleDisconnect(client: Socket): Promise<void> {
-    this.logger.log(`Client disconnected: ${client.id}`);
+  async handleDisconnect(client: AuthenticatedWebSocket): Promise<void> {
+    const clientId = client.clientId;
+    this.logger.log(`Client disconnected: ${clientId}`);
 
     // Clean up sessions for this client
-    const sessions = this.clientSessions.get(client.id);
-    if (sessions) {
-      for (const sessionId of sessions) {
+    if (client.sessionIds) {
+      for (const sessionId of client.sessionIds) {
         this.claudeService.destroySession(sessionId);
       }
-      this.clientSessions.delete(client.id);
+    }
+
+    this.clients.delete(clientId);
+  }
+
+  private async handleMessage(
+    client: AuthenticatedWebSocket,
+    rawData: string,
+  ): Promise<void> {
+    try {
+      const data = JSON.parse(rawData);
+      const { type } = data;
+
+      switch (type) {
+        case 'init_session':
+          await this.handleInitSession(client, data);
+          break;
+        case 'execute':
+          await this.handleExecute(client, data);
+          break;
+        case 'stop':
+          await this.handleStop(client, data);
+          break;
+        case 'ping':
+          this.handlePing(client);
+          break;
+        case 'pong':
+          client.isAlive = true;
+          break;
+        default:
+          this.logger.warn(`Unknown message type: ${type}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error parsing message: ${error.message}`);
     }
   }
 
-  @SubscribeMessage('init_session')
-  async handleInitSession(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { sessionId: string; projectId: string },
+  private async handleInitSession(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string; projectId: string },
   ): Promise<void> {
     const { sessionId, projectId } = data;
     this.logger.log(`Init session: ${sessionId} for project: ${projectId}`);
 
     try {
-      // Get project path from projectId (in real app, would look up in repos service)
-      const projectPath = projectId; // For now, projectId is the full path
-
+      const projectPath = projectId;
       await this.claudeService.initSession(sessionId, projectPath);
 
-      // Track session for this client
-      const sessions = this.clientSessions.get(client.id);
-      if (sessions) {
-        sessions.add(sessionId);
-      }
+      client.sessionIds.add(sessionId);
 
-      // Join the session room
-      client.join(sessionId);
-
-      this.sendToSession(client, sessionId, {
+      this.sendMessage(client, {
         type: 'session_ready',
         sessionId,
       });
 
-      this.sendToSession(client, sessionId, {
+      this.sendMessage(client, {
         type: 'status',
         sessionId,
         status: 'idle',
@@ -107,10 +179,8 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('execute')
-  async handleExecute(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
+  private async handleExecute(
+    client: AuthenticatedWebSocket,
     data: { sessionId: string; prompt: string; projectPath: string },
   ): Promise<void> {
     const { sessionId, prompt, projectPath } = data;
@@ -119,8 +189,7 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     try {
-      // Update status to running
-      this.sendToSession(client, sessionId, {
+      this.sendMessage(client, {
         type: 'status',
         sessionId,
         status: 'running',
@@ -134,7 +203,7 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       emitter.on('output', (output: ClaudeOutput) => {
         if (output.type === 'output') {
-          this.sendToSession(client, sessionId, {
+          this.sendMessage(client, {
             type: 'output',
             sessionId,
             content: output.content || '',
@@ -149,7 +218,7 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
             output.content || 'Unknown error',
           );
         } else if (output.type === 'exit') {
-          this.sendToSession(client, sessionId, {
+          this.sendMessage(client, {
             type: 'status',
             sessionId,
             status: 'idle',
@@ -158,7 +227,7 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (error) {
       this.sendError(client, sessionId, 'EXECUTE_FAILED', error.message);
-      this.sendToSession(client, sessionId, {
+      this.sendMessage(client, {
         type: 'status',
         sessionId,
         status: 'idle',
@@ -166,10 +235,9 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('stop')
-  async handleStop(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { sessionId: string },
+  private async handleStop(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string },
   ): Promise<void> {
     const { sessionId } = data;
     this.logger.log(`Stop session: ${sessionId}`);
@@ -177,7 +245,7 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       await this.claudeService.stopSession(sessionId);
 
-      this.sendToSession(client, sessionId, {
+      this.sendMessage(client, {
         type: 'status',
         sessionId,
         status: 'stopped',
@@ -187,30 +255,42 @@ export class ClaudeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('ping')
-  handlePing(@ConnectedSocket() client: Socket): void {
-    client.emit('pong', { timestamp: Date.now() });
+  private handlePing(client: AuthenticatedWebSocket): void {
+    client.isAlive = true;
+    this.sendMessage(client, { type: 'pong', timestamp: Date.now() });
   }
 
-  private sendToSession(
-    client: Socket,
-    sessionId: string,
-    message: ServerMessage,
-  ): void {
-    client.emit('message', message);
+  private sendMessage(client: AuthenticatedWebSocket, message: any): void {
+    try {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+      }
+    } catch (error) {
+      this.logger.error(`Error sending message: ${error.message}`);
+    }
   }
 
   private sendError(
-    client: Socket,
+    client: AuthenticatedWebSocket,
     sessionId: string,
     code: string,
     message: string,
   ): void {
-    client.emit('message', {
+    this.sendMessage(client, {
       type: 'error',
       sessionId,
       code,
       message,
     });
+  }
+
+  private generateClientId(): string {
+    return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  onModuleDestroy(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
   }
 }
