@@ -194,23 +194,10 @@ struct SessionContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            TerminalView(viewModel: terminalViewModel)
-
-            // Voice recorder FAB
-            Button {
-                onShowVoiceRecorder()
-            } label: {
-                Image(systemName: "mic.fill")
-                    .font(.title2)
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.blue)
-                    .clipShape(Circle())
-                    .shadow(radius: 4)
-            }
-            .padding()
-        }
+        TerminalView(
+            viewModel: terminalViewModel,
+            onShowVoiceRecorder: onShowVoiceRecorder
+        )
         .onChange(of: selectedProject) { project in
             if let project = project {
                 terminalViewModel.setProject(project)

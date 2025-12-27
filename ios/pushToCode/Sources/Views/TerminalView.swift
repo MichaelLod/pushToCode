@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TerminalView: View {
     @ObservedObject var viewModel: TerminalViewModel
+    var onShowVoiceRecorder: (() -> Void)?
     @State private var scrollProxy: ScrollViewProxy?
     @State private var showProjectPicker = false
 
@@ -140,20 +141,39 @@ struct TerminalView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
-            // Send button with 44px minimum touch target
-            Button {
-                viewModel.sendPrompt(viewModel.inputText)
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(canSend ? .blue : .gray)
+            // Smart button: mic when empty, send when has text
+            if hasText {
+                // Send button
+                Button {
+                    viewModel.sendPrompt(viewModel.inputText)
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(canSend ? .blue : .gray)
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .disabled(!canSend)
+                .accessibilityLabel("Send prompt")
+                .accessibilityHint(canSend ? "Double tap to send your message" : "Select a project to send")
+            } else {
+                // Mic button
+                Button {
+                    onShowVoiceRecorder?()
+                } label: {
+                    Image(systemName: "mic.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.blue)
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityLabel("Voice input")
+                .accessibilityHint("Double tap to record voice input")
             }
-            .frame(minWidth: 44, minHeight: 44)
-            .disabled(!canSend)
-            .accessibilityLabel("Send prompt")
-            .accessibilityHint(canSend ? "Double tap to send your message" : "Enter a prompt and select a project to send")
         }
         .padding()
+    }
+
+    private var hasText: Bool {
+        !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var canSend: Bool {
