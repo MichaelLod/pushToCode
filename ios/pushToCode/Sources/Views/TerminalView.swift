@@ -155,34 +155,32 @@ struct TerminalView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
-            // Mic button - always visible for dictation
+            // Mic button for dictation
             Button {
                 showVoiceRecorder = true
             } label: {
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 18))
                     .foregroundColor(.white)
                     .frame(width: 36, height: 36)
                     .background(Color.blue)
                     .clipShape(Circle())
             }
             .accessibilityLabel("Voice input")
-            .accessibilityHint("Double tap to dictate")
 
-            // Send button - always visible
+            // Send button
             Button {
                 viewModel.sendPrompt(viewModel.inputText)
             } label: {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 36, height: 36)
-                    .background(canSend ? Color.green : Color.gray)
+                    .background(canSend ? Color.green : Color.gray.opacity(0.5))
                     .clipShape(Circle())
             }
             .disabled(!canSend)
-            .accessibilityLabel("Send prompt")
-            .accessibilityHint(canSend ? "Double tap to send" : "Enter text and select a project to send")
+            .accessibilityLabel("Send")
         }
         .padding()
     }
