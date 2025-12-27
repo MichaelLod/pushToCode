@@ -86,7 +86,8 @@ final class TranscriptionService: ObservableObject {
                 throw TranscriptionError.networkError("Invalid response")
             }
 
-            if httpResponse.statusCode != 200 {
+            // Accept any 2xx status code as success
+            guard (200...299).contains(httpResponse.statusCode) else {
                 let message = String(data: data, encoding: .utf8) ?? "Unknown error"
                 throw TranscriptionError.serverError(httpResponse.statusCode, message)
             }
