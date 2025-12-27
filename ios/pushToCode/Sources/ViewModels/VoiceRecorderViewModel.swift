@@ -101,6 +101,11 @@ final class VoiceRecorderViewModel: ObservableObject {
                 // Clean up the recording file
                 audioRecorder.deleteCurrentRecording()
 
+                // Auto-send transcription to callback
+                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    onTranscriptionComplete?(text)
+                }
+
             } catch {
                 errorMessage = error.localizedDescription
                 triggerHapticFeedback(.error)
