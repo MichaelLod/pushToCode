@@ -6,6 +6,7 @@ import {
   UploadedFile,
   Body,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
@@ -15,6 +16,8 @@ import { TranscribeDto, TranscribeResponseDto } from './dto/transcribe.dto';
 @Controller('transcribe')
 @UseGuards(ApiKeyGuard)
 export class TranscriptionController {
+  private readonly logger = new Logger(TranscriptionController.name);
+
   constructor(private transcriptionService: TranscriptionService) {}
 
   @Post()
@@ -50,11 +53,16 @@ export class TranscriptionController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: TranscribeDto,
   ): Promise<TranscribeResponseDto> {
+    this.logger.log(
+      `Transcription request received: file=${file?.originalname}, size=${file?.size} bytes`,
+    );
+
     if (!file) {
+      this.logger.warn('Transcription request missing audio file');
       throw new BadRequestException('Audio file is required');
     }
 
-    return this.transcriptionService.transcribe(
+    const result = await this.transcriptionService.transcribe(
       file.buffer,
       file.originalname,
       {
@@ -62,5 +70,8 @@ export class TranscriptionController {
         prompt: dto.prompt,
       },
     );
+
+    this.logger.log(`Transcription complete: "${result.text.substring(0, 50)}..."`);
+    return result;
   }
 }

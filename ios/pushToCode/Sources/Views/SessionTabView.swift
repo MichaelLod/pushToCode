@@ -198,24 +198,119 @@ struct VoiceRecorderSheet: View {
 
     var body: some View {
         NavigationStack {
-            VoiceRecorderView(viewModel: viewModel)
-                .padding()
-                .navigationTitle("Voice Input")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            viewModel.cancelRecording()
-                            dismiss()
+            VStack(spacing: 24) {
+                Spacer()
+
+                // Audio Visualizer
+                ZStack {
+                    Circle()
+                        .fill(viewModel.isRecording ? Color.red.opacity(0.2) : Color.blue.opacity(0.1))
+                        .frame(width: 140, height: 140)
+
+                    if viewModel.isRecording {
+                        ForEach(0..<3, id: \.self) { index in
+                            Circle()
+                                .stroke(Color.red.opacity(0.3), lineWidth: 2)
+                                .frame(width: 140 + CGFloat(index) * 25, height: 140 + CGFloat(index) * 25)
+                                .scaleEffect(1 + CGFloat(viewModel.audioLevel) * 0.3)
+                                .animation(.easeInOut(duration: 0.1), value: viewModel.audioLevel)
+                        }
+                    }
+
+                    Image(systemName: viewModel.isRecording ? "mic.fill" : "mic")
+                        .font(.system(size: 50))
+                        .foregroundColor(viewModel.isRecording ? .red : .blue)
+                }
+
+                // Status
+                if viewModel.isRecording {
+                    VStack(spacing: 8) {
+                        HStack {
+                            Circle().fill(Color.red).frame(width: 10, height: 10)
+                            Text("Recording...").font(.headline).foregroundColor(.red)
+                        }
+                        Text(viewModel.formattedDuration)
+                            .font(.system(.title2, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                } else if viewModel.isTranscribing {
+                    HStack {
+                        ProgressView()
+                        Text("Transcribing...").font(.headline).foregroundColor(.blue)
+                    }
+                } else {
+                    Text("Tap to record").font(.headline).foregroundColor(.secondary)
+                }
+
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                Spacer()
+
+                // Single record/stop button
+                Button {
+                    if viewModel.isRecording {
+                        viewModel.stopRecording()
+                    } else {
+                        viewModel.startRecording()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(viewModel.isRecording ? Color.red : Color.blue)
+                            .frame(width: 72, height: 72)
+
+                        if viewModel.isRecording {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 28, height: 28)
                         }
                     }
                 }
-                .onAppear {
-                    viewModel.onTranscriptionComplete = { text in
-                        onTranscribe(text)
+                .disabled(viewModel.isTranscribing)
+
+                Spacer().frame(height: 20)
+            }
+            .padding()
+            .navigationTitle("Voice Input")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        viewModel.cancelRecording()
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                // Auto-start recording when sheet opens
+                viewModel.startRecording()
+
+                // Auto-append and dismiss when transcription completes
+                viewModel.onTranscriptionComplete = { text in
+                    onTranscribe(text)
+                    dismiss()
+                }
+            }
+            .alert("Microphone Access Required", isPresented: $viewModel.showPermissionAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) { dismiss() }
+            } message: {
+                Text("Please enable microphone access in Settings.")
+            }
         }
         .presentationDetents([.medium])
     }
