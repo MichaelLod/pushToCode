@@ -23,6 +23,9 @@ WORKDIR /app
 # Install git (required for git clone operations)
 RUN apk add --no-cache git
 
+# Install Claude Code CLI globally
+RUN npm install -g @anthropic-ai/claude-code
+
 # Create repos directory for volume mount
 RUN mkdir -p /repos
 
