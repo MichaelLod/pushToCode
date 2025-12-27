@@ -49,8 +49,16 @@ export interface ErrorMessage {
   message: string;
 }
 
+export interface AuthRequiredMessage {
+  type: 'auth_required';
+  sessionId: string;
+  authUrl: string;
+  message: string;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
   | OutputMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | AuthRequiredMessage;

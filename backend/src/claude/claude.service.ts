@@ -5,11 +5,12 @@ import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
 
 export interface ClaudeOutput {
-  type: 'output' | 'error' | 'exit';
+  type: 'output' | 'error' | 'exit' | 'auth_required';
   content?: string;
   outputType?: OutputType;
   code?: number;
   isFinal?: boolean;
+  authUrl?: string;
 }
 
 interface SessionData {
@@ -118,6 +119,19 @@ export class ClaudeService {
     claudeProcess.stderr?.on('data', (data: Buffer) => {
       const content = data.toString();
       this.logger.error(`Claude stderr: ${content}`);
+
+      // Check for auth URL in stderr
+      const authUrl = this.extractAuthUrl(content);
+      if (authUrl) {
+        this.logger.log(`Auth required, URL: ${authUrl}`);
+        emitter.emit('output', {
+          type: 'auth_required',
+          content: 'Claude requires authentication',
+          authUrl,
+        });
+        return;
+      }
+
       emitter.emit('output', {
         type: 'error',
         content,
@@ -243,6 +257,38 @@ export class ClaudeService {
     }
 
     return 'text';
+  }
+
+  private extractAuthUrl(content: string): string | null {
+    // Match various OAuth/login URL patterns
+    const urlPatterns = [
+      // Direct URL on its own line
+      /https:\/\/[^\s]+(?:login|auth|oauth|code)[^\s]*/gi,
+      // URL after "visit" or "open" prompt
+      /(?:visit|open|go to|navigate to)[:\s]+([^\s]+)/gi,
+      // anthropic.com URLs
+      /https:\/\/[^\s]*anthropic\.com[^\s]*/gi,
+      // claude.ai URLs
+      /https:\/\/[^\s]*claude\.ai[^\s]*/gi,
+    ];
+
+    for (const pattern of urlPatterns) {
+      const match = content.match(pattern);
+      if (match) {
+        // Clean up the URL (remove trailing punctuation)
+        let url = match[0].replace(/[.,;:!?)"'\]]+$/, '');
+        // If pattern has capture group, use that
+        if (match[1]) {
+          url = match[1].replace(/[.,;:!?)"'\]]+$/, '');
+        }
+        // Only return if it's a valid URL
+        if (url.startsWith('https://')) {
+          return url;
+        }
+      }
+    }
+
+    return null;
   }
 
   async stopSession(sessionId: string): Promise<void> {

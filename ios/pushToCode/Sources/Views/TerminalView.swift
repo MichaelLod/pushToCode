@@ -62,6 +62,14 @@ struct TerminalView: View {
                 }
             )
         }
+        .alert("Authentication Required", isPresented: $viewModel.showAuthAlert) {
+            Button("Open Browser") {
+                viewModel.openAuthUrl()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Claude needs you to log in. Tap 'Open Browser' to authenticate, then try your request again.")
+        }
     }
 
     // MARK: - Connection State

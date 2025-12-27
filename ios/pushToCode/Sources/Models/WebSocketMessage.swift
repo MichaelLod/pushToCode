@@ -40,6 +40,7 @@ enum ServerMessageType: String, Codable {
     case error
     case ping
     case pong
+    case authRequired = "auth_required"
 }
 
 struct ServerMessage: Codable {
@@ -52,9 +53,10 @@ struct ServerMessage: Codable {
     let code: String?
     let message: String?
     let timestamp: Int?
+    let authUrl: String?
 
     enum CodingKeys: String, CodingKey {
-        case type, sessionId, status, content, outputType, isFinal, code, message, timestamp
+        case type, sessionId, status, content, outputType, isFinal, code, message, timestamp, authUrl
     }
 
     init(from decoder: Decoder) throws {
@@ -68,5 +70,6 @@ struct ServerMessage: Codable {
         code = try container.decodeIfPresent(String.self, forKey: .code)
         message = try container.decodeIfPresent(String.self, forKey: .message)
         timestamp = try container.decodeIfPresent(Int.self, forKey: .timestamp)
+        authUrl = try container.decodeIfPresent(String.self, forKey: .authUrl)
     }
 }

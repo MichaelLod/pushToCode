@@ -88,6 +88,16 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         claudeProcess.stderr?.on('data', (data) => {
             const content = data.toString();
             this.logger.error(`Claude stderr: ${content}`);
+            const authUrl = this.extractAuthUrl(content);
+            if (authUrl) {
+                this.logger.log(`Auth required, URL: ${authUrl}`);
+                emitter.emit('output', {
+                    type: 'auth_required',
+                    content: 'Claude requires authentication',
+                    authUrl,
+                });
+                return;
+            }
             emitter.emit('output', {
                 type: 'error',
                 content,
@@ -190,6 +200,27 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return 'file_change';
         }
         return 'text';
+    }
+    extractAuthUrl(content) {
+        const urlPatterns = [
+            /https:\/\/[^\s]+(?:login|auth|oauth|code)[^\s]*/gi,
+            /(?:visit|open|go to|navigate to)[:\s]+([^\s]+)/gi,
+            /https:\/\/[^\s]*anthropic\.com[^\s]*/gi,
+            /https:\/\/[^\s]*claude\.ai[^\s]*/gi,
+        ];
+        for (const pattern of urlPatterns) {
+            const match = content.match(pattern);
+            if (match) {
+                let url = match[0].replace(/[.,;:!?)"'\]]+$/, '');
+                if (match[1]) {
+                    url = match[1].replace(/[.,;:!?)"'\]]+$/, '');
+                }
+                if (url.startsWith('https://')) {
+                    return url;
+                }
+            }
+        }
+        return null;
     }
     async stopSession(sessionId) {
         const session = this.sessions.get(sessionId);

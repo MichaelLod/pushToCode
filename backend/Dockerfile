@@ -29,8 +29,15 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create repos directory for volume mount
 RUN mkdir -p /repos
 
+# Create .claude directory for credential persistence
+# Mount this as a volume to persist auth: -v claude-auth:/root/.claude
+RUN mkdir -p /root/.claude
+
 # Set default repos path (can be overridden with -e REPOS_PATH=...)
 ENV REPOS_PATH=/repos
+
+# Set Claude home for credential storage
+ENV CLAUDE_CONFIG_DIR=/root/.claude
 
 # Set Node.js memory limit to 16GB
 ENV NODE_OPTIONS="--max-old-space-size=16384"

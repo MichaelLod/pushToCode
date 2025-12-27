@@ -156,6 +156,14 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                         isFinal: output.isFinal || false,
                     });
                 }
+                else if (output.type === 'auth_required') {
+                    this.sendMessage(client, {
+                        type: 'auth_required',
+                        sessionId,
+                        authUrl: output.authUrl || '',
+                        message: output.content || 'Authentication required',
+                    });
+                }
                 else if (output.type === 'error') {
                     this.sendError(client, sessionId, 'EXECUTION_ERROR', output.content || 'Unknown error');
                 }

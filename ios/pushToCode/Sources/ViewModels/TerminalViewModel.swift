@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 @MainActor
 final class TerminalViewModel: ObservableObject {
@@ -7,6 +8,8 @@ final class TerminalViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isConnected = false
     @Published var errorMessage: String?
+    @Published var authUrl: URL?
+    @Published var showAuthAlert = false
 
     private let webSocketService = WebSocketService.shared
     private let settingsManager = SettingsManager.shared
@@ -138,7 +141,35 @@ final class TerminalViewModel: ObservableObject {
         case .pong:
             // Heartbeat response, no action needed
             break
+
+        case .authRequired:
+            handleAuthRequired(message)
         }
+    }
+
+    private func handleAuthRequired(_ message: ServerMessage) {
+        guard let urlString = message.authUrl, let url = URL(string: urlString) else {
+            errorMessage = message.message ?? "Authentication required but no URL provided"
+            return
+        }
+
+        authUrl = url
+        showAuthAlert = true
+        session.status = .idle
+
+        // Add a message to the chat indicating auth is needed
+        let authMessage = Message(
+            role: .assistant,
+            content: "Claude requires authentication. Tap the link to log in, then try again.",
+            outputType: .text,
+            isFinal: true
+        )
+        session.addMessage(authMessage)
+    }
+
+    func openAuthUrl() {
+        guard let url = authUrl else { return }
+        UIApplication.shared.open(url)
     }
 
     private func handleOutput(_ message: ServerMessage) {

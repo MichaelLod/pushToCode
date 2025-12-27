@@ -38,4 +38,10 @@ export interface ErrorMessage {
     code: string;
     message: string;
 }
-export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage;
+export interface AuthRequiredMessage {
+    type: 'auth_required';
+    sessionId: string;
+    authUrl: string;
+    message: string;
+}
+export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage;
