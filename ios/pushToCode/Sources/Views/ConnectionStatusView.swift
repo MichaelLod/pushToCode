@@ -120,7 +120,7 @@ struct ConnectionStatusView: View {
             if shouldPulse {
                 Circle()
                     .fill(state.color.opacity(0.3))
-                    .frame(width: 16, height: 16)
+                    .frame(width: 12, height: 12)
                     .scaleEffect(isPulsing ? 1.5 : 1.0)
                     .opacity(isPulsing ? 0.0 : 0.6)
                     .animation(
@@ -132,12 +132,13 @@ struct ConnectionStatusView: View {
             // Main indicator dot
             Circle()
                 .fill(state.color)
-                .frame(width: 10, height: 10)
+                .frame(width: 8, height: 8)
 
             // Spinner overlay for connecting state
             if case .connecting = state {
                 ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                    .progressViewStyle(.circular)
+                    .tint(.secondary)
                     .scaleEffect(0.6)
             }
         }

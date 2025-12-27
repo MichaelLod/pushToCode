@@ -18,7 +18,7 @@ enum EmptyStateContext {
     var title: String {
         switch self {
         case .noProject: return "Select a Project"
-        case .connecting: return "Connecting..."
+        case .connecting: return ""
         case .ready: return "Ready to Code"
         }
     }
@@ -26,7 +26,7 @@ enum EmptyStateContext {
     var subtitle: String {
         switch self {
         case .noProject: return "Choose a project folder to start coding with Claude"
-        case .connecting: return "Establishing connection to server"
+        case .connecting: return "Please wait..."
         case .ready: return "Ask Claude to help with your code"
         }
     }
@@ -89,25 +89,27 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 12) {
             Spacer()
 
             // Icon
             iconView
 
             // Title and subtitle
-            VStack(spacing: 8) {
-                Text(context.title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.center)
+            VStack(spacing: 6) {
+                if !context.title.isEmpty {
+                    Text(context.title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Text(context.subtitle)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 24)
             }
 
             // Context-specific content
@@ -127,15 +129,16 @@ struct EmptyStateView: View {
         ZStack {
             Circle()
                 .fill(iconBackgroundColor.opacity(0.15))
-                .frame(width: 80, height: 80)
+                .frame(width: 56, height: 56)
 
             if case .connecting = context {
                 ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .orange))
-                    .scaleEffect(1.5)
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.9)
+                    .tint(.secondary)
             } else {
                 Image(systemName: context.icon)
-                    .font(.system(size: 32))
+                    .font(.system(size: 22))
                     .foregroundColor(iconBackgroundColor)
             }
         }

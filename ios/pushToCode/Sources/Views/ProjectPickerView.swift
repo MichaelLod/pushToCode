@@ -40,26 +40,31 @@ struct ProjectPickerView: View {
             }
 
         } label: {
-            HStack {
+            HStack(spacing: 6) {
                 Image(systemName: "folder.fill")
+                    .font(.subheadline)
                     .foregroundColor(.blue)
 
                 if let project = selectedProject {
                     Text(project.name)
+                        .font(.subheadline)
                         .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 180)
                 } else {
-                    Text("Select Project")
+                    Text("Select")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
                 Image(systemName: "chevron.down")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(Color(.secondarySystemBackground))
-            .cornerRadius(8)
+            .cornerRadius(6)
         }
         .sheet(isPresented: $showingAddRepo) {
             AddRepoView { project in
