@@ -29,9 +29,6 @@ RUN mkdir -p /repos
 # Set default repos path (can be overridden with -e REPOS_PATH=...)
 ENV REPOS_PATH=/repos
 
-# Declare volume for repo persistence
-VOLUME /repos
-
 # Copy package files
 COPY package*.json ./
 
