@@ -135,6 +135,11 @@ export class ClaudeService implements OnModuleInit {
       return emitter;
     }
 
+    // Log environment for debugging
+    const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    this.logger.log(`Spawning Claude CLI (OAuth token: ${hasOAuthToken ? 'yes' : 'NO'})`);
+    this.logger.log(`Working directory: ${projectPath}`);
+
     // Spawn Claude CLI process (uses OAuth, no API key needed)
     const claudeProcess = spawn(
       'claude',
@@ -149,13 +154,17 @@ export class ClaudeService implements OnModuleInit {
       },
     );
 
+    this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
+
     session.process = claudeProcess;
 
     let buffer = '';
     const currentOutputType: OutputType = 'text';
 
     claudeProcess.stdout?.on('data', (data: Buffer) => {
-      buffer += data.toString();
+      const chunk = data.toString();
+      this.logger.log(`Claude stdout (${chunk.length} bytes): ${chunk.substring(0, 200)}...`);
+      buffer += chunk;
 
       // Process complete JSON lines
       const lines = buffer.split('\n');
@@ -185,7 +194,7 @@ export class ClaudeService implements OnModuleInit {
 
     claudeProcess.stderr?.on('data', (data: Buffer) => {
       const content = data.toString();
-      this.logger.error(`Claude stderr: ${content}`);
+      this.logger.warn(`Claude stderr (${content.length} bytes): ${content.substring(0, 500)}`);
 
       // Check for auth URL in stderr
       const authUrl = this.extractAuthUrl(content);

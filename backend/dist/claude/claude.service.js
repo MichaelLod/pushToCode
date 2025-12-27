@@ -106,6 +106,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             });
             return emitter;
         }
+        const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        this.logger.log(`Spawning Claude CLI (OAuth token: ${hasOAuthToken ? 'yes' : 'NO'})`);
+        this.logger.log(`Working directory: ${projectPath}`);
         const claudeProcess = (0, child_process_1.spawn)('claude', ['-p', prompt, '--output-format', 'stream-json'], {
             cwd: projectPath,
             env: {
@@ -114,11 +117,14 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             },
             stdio: ['pipe', 'pipe', 'pipe'],
         });
+        this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
         session.process = claudeProcess;
         let buffer = '';
         const currentOutputType = 'text';
         claudeProcess.stdout?.on('data', (data) => {
-            buffer += data.toString();
+            const chunk = data.toString();
+            this.logger.log(`Claude stdout (${chunk.length} bytes): ${chunk.substring(0, 200)}...`);
+            buffer += chunk;
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             for (const line of lines) {
@@ -144,7 +150,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         claudeProcess.stderr?.on('data', (data) => {
             const content = data.toString();
-            this.logger.error(`Claude stderr: ${content}`);
+            this.logger.warn(`Claude stderr (${content.length} bytes): ${content.substring(0, 500)}`);
             const authUrl = this.extractAuthUrl(content);
             if (authUrl) {
                 this.pendingAuthUrl = authUrl;
