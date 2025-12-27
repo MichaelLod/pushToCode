@@ -3,7 +3,6 @@ import SwiftUI
 struct SessionTabView: View {
     @StateObject private var sessionsViewModel = SessionsViewModel()
     @State private var showingSettings = false
-    @State private var showingVoiceRecorder = false
 
     var body: some View {
         NavigationStack {
@@ -18,7 +17,6 @@ struct SessionTabView: View {
                     SessionContentView(
                         session: session,
                         selectedProject: $sessionsViewModel.selectedProject,
-                        onShowVoiceRecorder: { showingVoiceRecorder = true },
                         onSessionUpdate: { sessionsViewModel.updateSession($0) }
                     )
                 } else {
@@ -52,18 +50,6 @@ struct SessionTabView: View {
                 NavigationStack {
                     SettingsView()
                 }
-            }
-            .sheet(isPresented: $showingVoiceRecorder) {
-                VoiceRecorderSheet(
-                    selectedProject: sessionsViewModel.selectedProject,
-                    onSend: { prompt in
-                        if let session = sessionsViewModel.selectedSession {
-                            let viewModel = TerminalViewModel(session: session)
-                            viewModel.sendPrompt(prompt)
-                            sessionsViewModel.updateSession(viewModel.session)
-                        }
-                    }
-                )
             }
             .onChange(of: sessionsViewModel.selectedProject) { project in
                 if let project = project {
@@ -175,7 +161,6 @@ struct SessionTab: View {
 struct SessionContentView: View {
     let session: Session
     @Binding var selectedProject: Project?
-    let onShowVoiceRecorder: () -> Void
     let onSessionUpdate: (Session) -> Void
 
     @StateObject private var terminalViewModel: TerminalViewModel
@@ -183,29 +168,24 @@ struct SessionContentView: View {
     init(
         session: Session,
         selectedProject: Binding<Project?>,
-        onShowVoiceRecorder: @escaping () -> Void,
         onSessionUpdate: @escaping (Session) -> Void
     ) {
         self.session = session
         self._selectedProject = selectedProject
-        self.onShowVoiceRecorder = onShowVoiceRecorder
         self.onSessionUpdate = onSessionUpdate
         self._terminalViewModel = StateObject(wrappedValue: TerminalViewModel(session: session))
     }
 
     var body: some View {
-        TerminalView(
-            viewModel: terminalViewModel,
-            onShowVoiceRecorder: onShowVoiceRecorder
-        )
-        .onChange(of: selectedProject) { project in
-            if let project = project {
-                terminalViewModel.setProject(project)
+        TerminalView(viewModel: terminalViewModel)
+            .onChange(of: selectedProject) { project in
+                if let project = project {
+                    terminalViewModel.setProject(project)
+                }
             }
-        }
-        .onChange(of: terminalViewModel.session) { updatedSession in
-            onSessionUpdate(updatedSession)
-        }
+            .onChange(of: terminalViewModel.session) { updatedSession in
+                onSessionUpdate(updatedSession)
+            }
     }
 }
 
@@ -213,38 +193,29 @@ struct SessionContentView: View {
 
 struct VoiceRecorderSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = VoiceRecorderViewModel()
-
-    let selectedProject: Project?
-    let onSend: (String) -> Void
+    @ObservedObject var viewModel: VoiceRecorderViewModel
+    let onTranscribe: (String) -> Void
 
     var body: some View {
         NavigationStack {
-            VStack {
-                if selectedProject == nil {
-                    Text("Please select a project first")
-                        .foregroundColor(.secondary)
-                } else {
-                    VoiceRecorderView(viewModel: viewModel)
+            VoiceRecorderView(viewModel: viewModel)
+                .padding()
+                .navigationTitle("Voice Input")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            viewModel.cancelRecording()
+                            dismiss()
+                        }
+                    }
                 }
-            }
-            .padding()
-            .navigationTitle("Voice Input")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.cancelRecording()
+                .onAppear {
+                    viewModel.onTranscriptionComplete = { text in
+                        onTranscribe(text)
                         dismiss()
                     }
                 }
-            }
-            .onAppear {
-                viewModel.onTranscriptionComplete = { text in
-                    onSend(text)
-                    dismiss()
-                }
-            }
         }
         .presentationDetents([.medium])
     }
