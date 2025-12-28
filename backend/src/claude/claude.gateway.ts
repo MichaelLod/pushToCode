@@ -149,6 +149,9 @@ export class ClaudeGateway
         case 'stop':
           await this.handleStop(client, data);
           break;
+        case 'login':
+          await this.handleLogin(client);
+          break;
         case 'ping':
           this.handlePing(client);
           break;
@@ -223,12 +226,24 @@ export class ClaudeGateway
             isFinal: output.isFinal || false,
           });
         } else if (output.type === 'auth_required') {
-          this.sendMessage(client, {
-            type: 'auth_required',
-            sessionId,
-            authUrl: output.authUrl || '',
-            message: output.content || 'Authentication required',
-          });
+          // If no auth URL yet, trigger login to get one
+          if (!output.authUrl) {
+            this.logger.log('No auth URL in output, triggering login...');
+            const authUrl = await this.claudeService.triggerLogin();
+            this.sendMessage(client, {
+              type: 'auth_required',
+              sessionId,
+              authUrl: authUrl || '',
+              message: 'Please authenticate with Claude to continue.',
+            });
+          } else {
+            this.sendMessage(client, {
+              type: 'auth_required',
+              sessionId,
+              authUrl: output.authUrl,
+              message: output.content || 'Authentication required',
+            });
+          }
         } else if (output.type === 'error') {
           this.sendError(
             client,
@@ -271,6 +286,32 @@ export class ClaudeGateway
       });
     } catch (error) {
       this.sendError(client, sessionId, 'STOP_FAILED', error.message);
+    }
+  }
+
+  private async handleLogin(client: AuthenticatedWebSocket): Promise<void> {
+    this.logger.log('Handling login request');
+
+    try {
+      const authUrl = await this.claudeService.triggerLogin();
+
+      if (authUrl) {
+        this.sendMessage(client, {
+          type: 'auth_required',
+          sessionId: '',
+          authUrl,
+          message: 'Please authenticate with Claude to continue.',
+        });
+      } else {
+        this.sendError(
+          client,
+          '',
+          'LOGIN_FAILED',
+          'Could not get authentication URL. Please try again.',
+        );
+      }
+    } catch (error) {
+      this.sendError(client, '', 'LOGIN_FAILED', error.message);
     }
   }
 

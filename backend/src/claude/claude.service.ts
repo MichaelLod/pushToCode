@@ -122,6 +122,68 @@ export class ClaudeService implements OnModuleInit {
     this.isAuthenticated = true;
   }
 
+  async triggerLogin(): Promise<string | null> {
+    this.logger.log('Triggering Claude login flow...');
+
+    return new Promise((resolve) => {
+      const loginProcess = spawn('claude', ['/login'], {
+        cwd: '/tmp',
+        env: {
+          ...process.env,
+          FORCE_COLOR: '0',
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let output = '';
+      let foundUrl: string | null = null;
+
+      loginProcess.stdout?.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        output += chunk;
+        this.logger.log(`Login stdout: ${chunk}`);
+
+        const url = this.extractAuthUrl(chunk);
+        if (url && !foundUrl) {
+          foundUrl = url;
+          this.pendingAuthUrl = url;
+          this.logger.log(`Found auth URL: ${url}`);
+        }
+      });
+
+      loginProcess.stderr?.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        output += chunk;
+        this.logger.log(`Login stderr: ${chunk}`);
+
+        const url = this.extractAuthUrl(chunk);
+        if (url && !foundUrl) {
+          foundUrl = url;
+          this.pendingAuthUrl = url;
+          this.logger.log(`Found auth URL in stderr: ${url}`);
+        }
+      });
+
+      // Don't wait for process to finish - just wait for URL
+      setTimeout(() => {
+        if (foundUrl) {
+          resolve(foundUrl);
+        } else {
+          this.logger.warn('No auth URL found within timeout');
+          resolve(null);
+        }
+      }, 5000);
+
+      loginProcess.on('close', (code) => {
+        this.logger.log(`Login process exited with code ${code}`);
+        if (code === 0) {
+          this.isAuthenticated = true;
+          this.pendingAuthUrl = null;
+        }
+      });
+    });
+  }
+
   async initSession(sessionId: string, projectPath: string): Promise<void> {
     if (this.sessions.has(sessionId)) {
       this.logger.warn(`Session ${sessionId} already exists, cleaning up`);
@@ -357,9 +419,20 @@ export class ClaudeService implements OnModuleInit {
     }
 
     if (parsed.type === 'result') {
+      const result = parsed.result || '';
+
+      // Check if auth is required
+      if (result.includes('Please run /login') || result.includes('Invalid API key')) {
+        return {
+          type: 'auth_required',
+          content: result,
+          authUrl: this.pendingAuthUrl || undefined,
+        };
+      }
+
       return {
         type: 'output',
-        content: parsed.result || '',
+        content: result,
         outputType: 'text',
         isFinal: true,
       };

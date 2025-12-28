@@ -9,6 +9,12 @@ chown -R claude:claude /repos
 mkdir -p "$CLAUDE_DIR"
 chown -R claude:claude "$CLAUDE_DIR"
 
+# Symlink home .claude to repos .claude (Claude CLI uses $HOME/.claude for hooks)
+mkdir -p /home/claude
+rm -rf /home/claude/.claude
+ln -sf "$CLAUDE_DIR" /home/claude/.claude
+chown -h claude:claude /home/claude/.claude
+
 # Build settings repo URL with token if available
 if [ -n "$GITHUB_TOKEN" ]; then
   SETTINGS_REPO="https://${GITHUB_TOKEN}@github.com/MichaelLod/claude-settings.git"
