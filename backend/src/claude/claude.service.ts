@@ -513,7 +513,13 @@ export class ClaudeService implements OnModuleInit {
         }
         // Only return if it's a valid URL
         if (url.startsWith('https://')) {
-          return url;
+          // Decode URL to prevent double-encoding when iOS opens it
+          // iOS may encode the URL again, so we send it decoded
+          try {
+            return decodeURIComponent(url);
+          } catch {
+            return url;
+          }
         }
       }
     }
