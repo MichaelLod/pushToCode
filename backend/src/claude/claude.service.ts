@@ -444,16 +444,15 @@ export class ClaudeService implements OnModuleInit {
         setTimeout(() => {
           if (session.ptyProcess === ptyProcess) {
             // For bypass prompt, select option 2 (Yes, I accept)
-            // Menu uses arrow keys, so press Down to move to option 2, then Enter
             if (isBypassPrompt && cleanData.includes('1. No, exit')) {
               this.logger.log('Selecting "Yes, I accept" for bypass permissions');
-              // Down arrow (\x1b[B) to select option 2, then Enter
-              ptyProcess.write('\x1b[B\r');
+              // Type "2" to select option 2
+              ptyProcess.write('2');
             } else {
               ptyProcess.write('\r');
             }
           }
-        }, 300);
+        }, 500);
       }
 
       // Check for auth URL in output
