@@ -226,6 +226,22 @@ struct TerminalView: View {
                         viewModel.sendRawInput("\u{1b}")  // Escape character
                     }
 
+                    // Login button - triggers proper claude login flow
+                    Button {
+                        viewModel.triggerLogin()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.badge.key")
+                            Text("Login")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.orange)
+                        .cornerRadius(6)
+                    }
+
                     Spacer()
 
                     // Arrow keys
