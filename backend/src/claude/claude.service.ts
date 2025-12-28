@@ -170,10 +170,22 @@ export class ClaudeService implements OnModuleInit {
         }
 
         // Handle onboarding prompts by pressing Enter to accept defaults
-        if (cleanData.includes('Dark mode') ||
-            cleanData.includes('Light mode') ||
-            cleanData.includes('Choose the text style') ||
-            cleanData.includes('Let\'s get started')) {
+        // But avoid interfering with auth code entry
+        const isOnboardingPrompt = (
+          cleanData.includes('Dark mode') ||
+          cleanData.includes('Light mode') ||
+          cleanData.includes('Choose the text style') ||
+          cleanData.includes('Let\'s get started') ||
+          cleanData.includes('Welcome to Claude') ||
+          cleanData.includes('Press Enter to continue') ||
+          /[❯>]\s*\d+\..*mode/i.test(cleanData)  // Menu selection for modes
+        );
+        const isAuthCodePrompt = (
+          cleanData.includes('Paste your') ||
+          cleanData.includes('Enter the code') ||
+          cleanData.includes('authorization code')
+        );
+        if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode) {
           this.logger.log('Detected onboarding prompt, pressing Enter to continue');
           setTimeout(() => ptyProcess.write('\n'), 500);
         }
@@ -221,11 +233,13 @@ export class ClaudeService implements OnModuleInit {
       ptyProcess.onExit(({ exitCode }) => {
         this.logger.log(`PTY login process exited with code ${exitCode}`);
         this.loginPtyProcess = null;
-        if (exitCode === 0) {
+        if (exitCode === 0 && !authSuccessEmitted) {
+          // Only emit if we haven't already detected success from output
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
+          authSuccessEmitted = true;
           emitter.emit('auth_success');
-        } else {
+        } else if (exitCode !== 0) {
           emitter.emit('auth_failed', `Process exited with code ${exitCode}`);
         }
         if (!foundUrl) {
@@ -234,7 +248,7 @@ export class ClaudeService implements OnModuleInit {
         }
       });
 
-      // Timeout after 10 seconds for URL (but keep process alive for code entry)
+      // Timeout after 30 seconds for URL (longer to handle onboarding prompts)
       setTimeout(() => {
         if (!foundUrl) {
           this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
@@ -242,7 +256,7 @@ export class ClaudeService implements OnModuleInit {
           this.loginPtyProcess = null;
           resolve({ url: null, emitter });
         }
-      }, 10000);
+      }, 30000);
     });
   }
 
