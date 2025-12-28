@@ -13,7 +13,6 @@ final class TerminalViewModel: ObservableObject {
     @Published var showAuthCodeInput = false
     @Published var authCode: String = ""
     @Published var isSubmittingAuthCode = false
-    @Published var isInteractiveMode = false
     @Published var ptyOutput: String = ""
     @Published var isStartingSession = false
 
@@ -72,7 +71,6 @@ final class TerminalViewModel: ObservableObject {
     func disconnect() {
         webSocketService.disconnect()
         session.status = .disconnected
-        isInteractiveMode = false
         ptyOutput = ""
     }
 
@@ -98,29 +96,8 @@ final class TerminalViewModel: ObservableObject {
         let promptText = prompt
         inputText = ""
 
-        // In interactive mode, send to PTY instead of executing
-        if isInteractiveMode {
-            sendPtyInput(promptText)
-            return
-        }
-
-        guard let projectPath = session.projectPath else {
-            errorMessage = "Please select a project first"
-            return
-        }
-
-        // Add user message
-        let userMessage = Message(role: .user, content: promptText)
-        session.addMessage(userMessage)
-
-        // Send to server
-        webSocketService.execute(
-            sessionId: session.id,
-            prompt: promptText,
-            projectPath: projectPath
-        )
-
-        session.status = .running
+        // Always send to PTY (interactive mode is the only mode)
+        sendPtyInput(promptText)
     }
 
     func stop() {
@@ -206,7 +183,6 @@ final class TerminalViewModel: ObservableObject {
         showAuthCodeInput = false
         authCode = ""
         authUrl = nil
-        isInteractiveMode = false
         ptyOutput = ""
 
         let successMessage = Message(
@@ -276,11 +252,9 @@ final class TerminalViewModel: ObservableObject {
     }
 
     private func handleLoginInteractive(_ message: ServerMessage) {
-        isInteractiveMode = true
-
         let interactiveMessage = Message(
             role: .assistant,
-            content: message.message ?? "Interactive mode: Type /login to authenticate with Claude.",
+            content: message.message ?? "Type /login to authenticate with Claude.",
             outputType: .text,
             isFinal: true
         )
@@ -289,7 +263,6 @@ final class TerminalViewModel: ObservableObject {
 
     private func handleInteractiveStarted(_ message: ServerMessage) {
         isStartingSession = false
-        isInteractiveMode = true
         session.status = .running
     }
 
@@ -357,7 +330,6 @@ final class TerminalViewModel: ObservableObject {
 
         isStartingSession = true
         session.status = .running
-        isInteractiveMode = true
 
         webSocketService.startInteractiveSession(
             sessionId: session.id,

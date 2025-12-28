@@ -196,29 +196,8 @@ struct TerminalView: View {
 
     private var inputArea: some View {
         VStack(spacing: 0) {
-            // Interactive mode indicator
-            if viewModel.isInteractiveMode {
-                HStack {
-                    Image(systemName: "terminal.fill")
-                        .foregroundColor(.orange)
-                    Text("Interactive CLI Mode")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Spacer()
-                    Button("Exit") {
-                        viewModel.isInteractiveMode = false
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.1))
-            }
-
             HStack(spacing: 8) {
-                TextField(viewModel.isInteractiveMode ? "Type CLI command..." : "Enter prompt...",
-                          text: $viewModel.inputText, axis: .vertical)
+                TextField("Type command or prompt...", text: $viewModel.inputText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...5)
                     .padding(.horizontal, 12)
@@ -258,14 +237,8 @@ struct TerminalView: View {
     }
 
     private var canSend: Bool {
-        // In interactive mode, just need text
-        if viewModel.isInteractiveMode {
-            return !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        // Normal mode needs project and not running
-        return !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            viewModel.session.projectPath != nil &&
-            viewModel.session.status != .running
+        !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        viewModel.session.projectPath != nil
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
