@@ -126,14 +126,19 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log('Triggering Claude login flow...');
 
     return new Promise((resolve) => {
-      const loginProcess = spawn('claude', ['/login'], {
+      // Use --no-browser to print URL instead of opening browser
+      const loginProcess = spawn('claude', ['login', '--no-browser'], {
         cwd: '/tmp',
         env: {
           ...process.env,
           FORCE_COLOR: '0',
+          CI: '1',
+          BROWSER: 'none',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+
+      this.logger.log(`Login process spawned with PID: ${loginProcess.pid}`);
 
       let output = '';
       let foundUrl: string | null = null;
@@ -164,18 +169,22 @@ export class ClaudeService implements OnModuleInit {
         }
       });
 
+      loginProcess.on('error', (error) => {
+        this.logger.error(`Login process error: ${error.message}`);
+      });
+
       // Don't wait for process to finish - just wait for URL
       setTimeout(() => {
         if (foundUrl) {
           resolve(foundUrl);
         } else {
-          this.logger.warn('No auth URL found within timeout');
+          this.logger.warn(`No auth URL found within timeout. Output so far: ${output}`);
           resolve(null);
         }
       }, 5000);
 
       loginProcess.on('close', (code) => {
-        this.logger.log(`Login process exited with code ${code}`);
+        this.logger.log(`Login process exited with code ${code}, total output: ${output}`);
         if (code === 0) {
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
