@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install build tools for node-pty native compilation
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package*.json ./
 
