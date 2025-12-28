@@ -415,6 +415,38 @@ export class ClaudeService implements OnModuleInit {
         this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 100)}`);
         emitter.emit('pty_output', cleanData);
       }
+
+      // Check for auth URL in PTY output (when user types /login)
+      const authUrl = this.extractAuthUrl(data);
+      if (authUrl) {
+        this.pendingAuthUrl = authUrl;
+        this.isAuthenticated = false;
+        this.logger.log(`Auth URL detected in interactive session: ${authUrl}`);
+        emitter.emit('output', {
+          type: 'auth_required',
+          content: 'Claude requires authentication',
+          authUrl,
+        });
+      }
+
+      // Check for "Missing API key" message - prompt user to login
+      if (cleanData.includes('Missing API key') || cleanData.includes('Run /login')) {
+        this.logger.log('Detected Missing API key message - auth required');
+        emitter.emit('output', {
+          type: 'login_interactive',
+          content: 'Type /login to authenticate with Claude',
+        });
+      }
+
+      // Check for successful authentication
+      if (cleanData.includes('Successfully authenticated') ||
+          cleanData.includes('Authentication successful') ||
+          cleanData.includes('Logged in as')) {
+        this.logger.log('Authentication successful in interactive session!');
+        this.isAuthenticated = true;
+        this.pendingAuthUrl = null;
+        emitter.emit('auth_success');
+      }
     });
 
     ptyProcess.onExit(({ exitCode }) => {
@@ -754,8 +786,10 @@ export class ClaudeService implements OnModuleInit {
 
     // Match various OAuth/login URL patterns
     const urlPatterns = [
+      // console.anthropic.com URLs (Claude's OAuth)
+      /https:\/\/console\.anthropic\.com[^\s]*/gi,
       // Direct URL on its own line
-      /https:\/\/[^\s]+(?:login|auth|oauth|code)[^\s]*/gi,
+      /https:\/\/[^\s]+(?:login|auth|oauth|code|device)[^\s]*/gi,
       // URL after "visit" or "open" prompt
       /(?:visit|open|go to|navigate to)[:\s]+([^\s]+)/gi,
       // anthropic.com URLs
