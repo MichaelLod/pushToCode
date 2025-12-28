@@ -162,6 +162,8 @@ export class ClaudeService implements OnModuleInit {
       let authSuccessEmitted = false;
       let killedByTimeout = false;
       let lastEnterPress = 0;
+      let sentLoginCommand = false;
+      let inInteractiveMode = false;
 
       ptyProcess.onData((data: string) => {
         output += data;
@@ -169,6 +171,13 @@ export class ClaudeService implements OnModuleInit {
         const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
         if (cleanData) {
           this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+        }
+
+        // Detect when we're in the interactive Claude Code session
+        if (cleanData.includes('Try "write a test') ||
+            cleanData.includes('Tips for getting started') ||
+            cleanData.includes('Claude Code v')) {
+          inInteractiveMode = true;
         }
 
         // Handle onboarding prompts by pressing Enter to accept defaults
@@ -180,15 +189,16 @@ export class ClaudeService implements OnModuleInit {
           cleanData.includes('Let\'s get started') ||
           cleanData.includes('Welcome to Claude') ||
           cleanData.includes('Press Enter') ||
+          cleanData.includes('Ready to code here') ||
+          cleanData.includes('Yes, continue') ||
           cleanData.includes('telemetry') ||
           cleanData.includes('analytics') ||
-          /[❯>]\s*\d+\./i.test(cleanData)  // Any numbered menu selection
+          /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)  // Menu selection
         );
         const isAuthCodePrompt = (
           cleanData.includes('Paste your') ||
           cleanData.includes('Enter the code') ||
           cleanData.includes('authorization code') ||
-          cleanData.includes('authenticate') ||
           cleanData.includes('console.anthropic.com')
         );
 
@@ -197,13 +207,23 @@ export class ClaudeService implements OnModuleInit {
         if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
           this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
           lastEnterPress = now;
-          // Send just \r (carriage return) - this is what terminals send for Enter
           setTimeout(() => {
             if (this.loginPtyProcess === ptyProcess) {
               this.logger.log('Sending Enter key (\\r) to PTY');
               ptyProcess.write('\r');
             }
           }, 500);
+        }
+
+        // Once in interactive mode, send /login command to trigger OAuth
+        if (inInteractiveMode && !sentLoginCommand && !readyForCode) {
+          sentLoginCommand = true;
+          this.logger.log('Interactive mode detected, sending /login command');
+          setTimeout(() => {
+            if (this.loginPtyProcess === ptyProcess) {
+              ptyProcess.write('/login\r');
+            }
+          }, 1000);
         }
 
         // Check if CLI is ready to receive the auth code
