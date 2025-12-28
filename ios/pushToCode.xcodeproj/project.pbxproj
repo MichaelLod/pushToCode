@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		ANSI00000000000000001111 /* ANSIParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANSI00000000000000002222 /* ANSIParser.swift */; };
 		03B1472DF96583D25E9A64D0 /* VoiceRecorderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 720C4CF41179CC1AF4D0939F /* VoiceRecorderViewModel.swift */; };
+		THEME0000000000000001111 /* TerminalTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = THEME0000000000000002222 /* TerminalTheme.swift */; };
 		11111111111111111111AAA1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB1 /* ConnectionStatusView.swift */; };
 		11111111111111111111AAA2 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB2 /* EmptyStateView.swift */; };
 		11111111111111111111AAA3 /* ProjectSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22222222222222222222BBB3 /* ProjectSelectionView.swift */; };
@@ -33,7 +35,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		ANSI00000000000000002222 /* ANSIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ANSIParser.swift; sourceTree = "<group>"; };
 		0F7447280D9B81EBAAD0C1CF /* pushToCodeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pushToCodeApp.swift; sourceTree = "<group>"; };
+		THEME0000000000000002222 /* TerminalTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTheme.swift; sourceTree = "<group>"; };
 		22222222222222222222BBB1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
 		22222222222222222222BBB2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		22222222222222222222BBB3 /* ProjectSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSelectionView.swift; sourceTree = "<group>"; };
@@ -74,6 +78,7 @@
 		3A8AC01DA0B4162482DC6716 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				ANSI00000000000000002222 /* ANSIParser.swift */,
 				C606AC96BCA68AE0808062BE /* AudioRecorderService.swift */,
 				C7CDB48DAC162D221A630214 /* ReposService.swift */,
 				37F066FD591B787602E4A507 /* SettingsManager.swift */,
@@ -177,6 +182,7 @@
 				E21FDFA27D11437BBA2E8902 /* Message.swift */,
 				B36FD2E20793A2AECC778EA5 /* Project.swift */,
 				E958A674FC15A43C99D4DE77 /* Session.swift */,
+				THEME0000000000000002222 /* TerminalTheme.swift */,
 				A235F7332FEA4DA33117B2E2 /* WebSocketMessage.swift */,
 			);
 			path = Models;
@@ -249,7 +255,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ANSI00000000000000001111 /* ANSIParser.swift in Sources */,
 				D6C5B909D2396593BEF3637A /* AudioRecorderService.swift in Sources */,
+				THEME0000000000000001111 /* TerminalTheme.swift in Sources */,
 				11111111111111111111AAA1 /* ConnectionStatusView.swift in Sources */,
 				11111111111111111111AAA2 /* EmptyStateView.swift in Sources */,
 				63DEA8DC464E4635855F3F0A /* Message.swift in Sources */,

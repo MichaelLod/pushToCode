@@ -14,6 +14,12 @@ struct TerminalTheme {
     /// Input bar background color (#24283b)
     static let inputBarBackground = Color(hex: 0x24283b)
 
+    /// Alias for textForeground - default text color
+    static let textColor = textForeground
+
+    /// Cursor color (bright cyan for visibility)
+    static let cursorColor = Color(hex: 0x7dcfff)
+
     // MARK: - Standard ANSI Colors (0-7)
 
     /// ANSI color 0: Black
