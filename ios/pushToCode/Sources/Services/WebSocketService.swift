@@ -148,6 +148,16 @@ final class WebSocketService: NSObject, ObservableObject {
         send(message)
     }
 
+    func sendPtyInput(_ input: String) {
+        let message = PtyInputMessage(input: input)
+        send(message)
+    }
+
+    func sendLogin() {
+        let message = LoginMessage()
+        send(message)
+    }
+
     // MARK: - Message Receiving
 
     private func receiveMessage() {

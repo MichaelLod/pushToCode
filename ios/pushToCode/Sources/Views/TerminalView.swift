@@ -171,14 +171,36 @@ struct TerminalView: View {
     // MARK: - Input Area
 
     private var inputArea: some View {
-        HStack(spacing: 8) {
-            TextField("Enter prompt...", text: $viewModel.inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(20)
+        VStack(spacing: 0) {
+            // Interactive mode indicator
+            if viewModel.isInteractiveMode {
+                HStack {
+                    Image(systemName: "terminal.fill")
+                        .foregroundColor(.orange)
+                    Text("Interactive CLI Mode")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                    Button("Exit") {
+                        viewModel.isInteractiveMode = false
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.1))
+            }
+
+            HStack(spacing: 8) {
+                TextField(viewModel.isInteractiveMode ? "Type CLI command..." : "Enter prompt...",
+                          text: $viewModel.inputText, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(20)
 
             // Mic button for dictation
             Button {
@@ -206,14 +228,20 @@ struct TerminalView: View {
             }
             .disabled(!canSend)
             .accessibilityLabel("Send")
+            }
+            .padding()
         }
-        .padding()
     }
 
     private var canSend: Bool {
-        !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        viewModel.session.projectPath != nil &&
-        viewModel.session.status != .running
+        // In interactive mode, just need text
+        if viewModel.isInteractiveMode {
+            return !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        // Normal mode needs project and not running
+        return !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            viewModel.session.projectPath != nil &&
+            viewModel.session.status != .running
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {

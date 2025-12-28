@@ -13,6 +13,8 @@ final class TerminalViewModel: ObservableObject {
     @Published var showAuthCodeInput = false
     @Published var authCode: String = ""
     @Published var isSubmittingAuthCode = false
+    @Published var isInteractiveMode = false
+    @Published var ptyOutput: String = ""
 
     private let webSocketService = WebSocketService.shared
     private let settingsManager = SettingsManager.shared
@@ -69,6 +71,8 @@ final class TerminalViewModel: ObservableObject {
     func disconnect() {
         webSocketService.disconnect()
         session.status = .disconnected
+        isInteractiveMode = false
+        ptyOutput = ""
     }
 
     func initializeSession() {
@@ -88,22 +92,30 @@ final class TerminalViewModel: ObservableObject {
 
     func sendPrompt(_ prompt: String) {
         guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        // Clear input first
+        let promptText = prompt
+        inputText = ""
+
+        // In interactive mode, send to PTY instead of executing
+        if isInteractiveMode {
+            sendPtyInput(promptText)
+            return
+        }
+
         guard let projectPath = session.projectPath else {
             errorMessage = "Please select a project first"
             return
         }
 
         // Add user message
-        let userMessage = Message(role: .user, content: prompt)
+        let userMessage = Message(role: .user, content: promptText)
         session.addMessage(userMessage)
-
-        // Clear input
-        inputText = ""
 
         // Send to server
         webSocketService.execute(
             sessionId: session.id,
-            prompt: prompt,
+            prompt: promptText,
             projectPath: projectPath
         )
 
@@ -161,6 +173,12 @@ final class TerminalViewModel: ObservableObject {
 
         case .authFailed:
             handleAuthFailed(message)
+
+        case .ptyOutput:
+            handlePtyOutput(message)
+
+        case .loginInteractive:
+            handleLoginInteractive(message)
         }
     }
 
@@ -184,6 +202,8 @@ final class TerminalViewModel: ObservableObject {
         showAuthCodeInput = false
         authCode = ""
         authUrl = nil
+        isInteractiveMode = false
+        ptyOutput = ""
 
         let successMessage = Message(
             role: .assistant,
@@ -233,6 +253,50 @@ final class TerminalViewModel: ObservableObject {
         showAuthCodeInput = false
         authCode = ""
         isSubmittingAuthCode = false
+    }
+
+    private func handlePtyOutput(_ message: ServerMessage) {
+        guard let content = message.content, !content.isEmpty else { return }
+
+        // Append to PTY output buffer
+        ptyOutput += content + "\n"
+
+        // Also show as a message in the chat (for CLI output)
+        let ptyMessage = Message(
+            role: .assistant,
+            content: content,
+            outputType: .text,
+            isFinal: false
+        )
+        session.addMessage(ptyMessage)
+    }
+
+    private func handleLoginInteractive(_ message: ServerMessage) {
+        isInteractiveMode = true
+
+        let interactiveMessage = Message(
+            role: .assistant,
+            content: message.message ?? "Interactive mode: Type /login to authenticate with Claude.",
+            outputType: .text,
+            isFinal: true
+        )
+        session.addMessage(interactiveMessage)
+    }
+
+    func sendPtyInput(_ input: String) {
+        guard !input.isEmpty else { return }
+
+        // Add user message to chat
+        let userMessage = Message(role: .user, content: input)
+        session.addMessage(userMessage)
+
+        // Send input to PTY with newline
+        webSocketService.sendPtyInput(input + "\r")
+    }
+
+    func triggerLogin() {
+        webSocketService.sendLogin()
+        session.status = .running
     }
 
     private func handleOutput(_ message: ServerMessage) {
