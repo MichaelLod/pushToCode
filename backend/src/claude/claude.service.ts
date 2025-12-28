@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
+import * as pty from 'node-pty';
 
 export interface ClaudeOutput {
   type: 'output' | 'error' | 'exit' | 'auth_required';
@@ -123,72 +124,64 @@ export class ClaudeService implements OnModuleInit {
   }
 
   async triggerLogin(): Promise<string | null> {
-    this.logger.log('Triggering Claude login flow via setup-token...');
+    this.logger.log('Triggering Claude login flow via PTY...');
 
     return new Promise((resolve) => {
-      // Use setup-token command which handles headless auth
-      const loginProcess = spawn('claude', ['setup-token'], {
-        cwd: '/tmp',
-        env: {
-          ...process.env,
-          FORCE_COLOR: '0',
-          BROWSER: 'none',  // Prevent browser opening, force URL printing
-        },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      this.logger.log(`Login process spawned with PID: ${loginProcess.pid}`);
-
       let output = '';
       let foundUrl: string | null = null;
 
-      loginProcess.stdout?.on('data', (data: Buffer) => {
-        const chunk = data.toString();
-        output += chunk;
-        this.logger.log(`Login stdout: ${chunk}`);
+      // Use pseudo-terminal for interactive setup-token command
+      const ptyProcess = pty.spawn('claude', ['setup-token'], {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 30,
+        cwd: '/tmp',
+        env: {
+          ...process.env,
+          FORCE_COLOR: '1',
+          TERM: 'xterm-256color',
+        },
+      });
 
-        const url = this.extractAuthUrl(chunk);
+      this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
+
+      ptyProcess.onData((data: string) => {
+        output += data;
+        // Strip ANSI escape codes for logging
+        const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+        if (cleanData) {
+          this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+        }
+
+        const url = this.extractAuthUrl(data);
         if (url && !foundUrl) {
           foundUrl = url;
           this.pendingAuthUrl = url;
           this.logger.log(`Found auth URL: ${url}`);
+          resolve(url);
         }
       });
 
-      loginProcess.stderr?.on('data', (data: Buffer) => {
-        const chunk = data.toString();
-        output += chunk;
-        this.logger.log(`Login stderr: ${chunk}`);
-
-        const url = this.extractAuthUrl(chunk);
-        if (url && !foundUrl) {
-          foundUrl = url;
-          this.pendingAuthUrl = url;
-          this.logger.log(`Found auth URL in stderr: ${url}`);
-        }
-      });
-
-      loginProcess.on('error', (error) => {
-        this.logger.error(`Login process error: ${error.message}`);
-      });
-
-      // Don't wait for process to finish - just wait for URL
-      setTimeout(() => {
-        if (foundUrl) {
-          resolve(foundUrl);
-        } else {
-          this.logger.warn(`No auth URL found within timeout. Output so far: ${output}`);
-          resolve(null);
-        }
-      }, 5000);
-
-      loginProcess.on('close', (code) => {
-        this.logger.log(`Login process exited with code ${code}, total output: ${output}`);
-        if (code === 0) {
+      ptyProcess.onExit(({ exitCode }) => {
+        this.logger.log(`PTY process exited with code ${exitCode}`);
+        if (exitCode === 0) {
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
         }
+        if (!foundUrl) {
+          this.logger.warn(`No auth URL found. Full output: ${output.substring(0, 500)}`);
+          resolve(null);
+        }
       });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!foundUrl) {
+          this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
+          ptyProcess.kill();
+          resolve(null);
+        }
+      }, 10000);
     });
   }
 
