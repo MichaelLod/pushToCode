@@ -408,49 +408,12 @@ export class ClaudeService implements OnModuleInit {
     session.ptyProcess = ptyProcess;
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid}`);
 
-    let lastEnterPress = 0;
-
     ptyProcess.onData((data: string) => {
-      // Strip ANSI escape codes and terminal control sequences for clean display
+      // Strip ANSI codes since iOS can't render them, otherwise pass through raw
       const cleanData = this.stripAnsiAndControl(data);
-      if (cleanData) {
+      if (cleanData.trim()) {
         this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 200)}`);
-        // Emit PTY output to client
         emitter.emit('pty_output', cleanData);
-      }
-
-      // Auto-handle onboarding prompts only (dark mode, text style setup)
-      // These are non-security prompts that just need Enter to accept defaults
-      const isOnboardingPrompt = (
-        cleanData.includes('Dark mode') ||
-        cleanData.includes('Light mode') ||
-        cleanData.includes('Choose the text style') ||
-        cleanData.includes('Let\'s get started') ||
-        cleanData.includes('Ready to code here') ||
-        /[❯>]\s*\d+\.\s*(Dark|Light)/i.test(cleanData)
-      );
-
-      const now = Date.now();
-      if (isOnboardingPrompt && (now - lastEnterPress > 1000)) {
-        this.logger.log(`Auto-accepting onboarding prompt: ${cleanData.substring(0, 100)}`);
-        lastEnterPress = now;
-        setTimeout(() => {
-          if (session.ptyProcess === ptyProcess) {
-            ptyProcess.write('\r');
-          }
-        }, 500);
-      }
-
-      // Check for auth URL in output
-      const authUrl = this.extractAuthUrl(data);
-      if (authUrl) {
-        this.pendingAuthUrl = authUrl;
-        this.isAuthenticated = false;
-        emitter.emit('output', {
-          type: 'auth_required',
-          content: 'Claude requires authentication',
-          authUrl,
-        });
       }
     });
 
