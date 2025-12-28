@@ -1,6 +1,7 @@
 #!/bin/sh
 
-CLAUDE_DIR="/root/.claude"
+# Use home directory appropriate for current user (non-root)
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
 
 # Build settings repo URL with token if available
 if [ -n "$GITHUB_TOKEN" ]; then
