@@ -270,8 +270,8 @@ final class TerminalViewModel: ObservableObject {
         let userMessage = Message(role: .user, content: input)
         session.addMessage(userMessage)
 
-        // Send input to PTY with newline, include sessionId for session PTY
-        webSocketService.sendPtyInput(input + "\r", sessionId: session.id)
+        // Send input to PTY with newline (Unix style), include sessionId for session PTY
+        webSocketService.sendPtyInput(input + "\n", sessionId: session.id)
     }
 
     func triggerLogin() {

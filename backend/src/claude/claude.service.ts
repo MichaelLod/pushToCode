@@ -409,6 +409,10 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid}`);
 
     ptyProcess.onData((data: string) => {
+      // Log raw data for debugging (hex representation of first 100 chars)
+      const hexDebug = data.substring(0, 100).split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+      this.logger.debug(`Session ${sessionId} PTY raw (hex): ${hexDebug}`);
+
       // Strip ANSI codes for clean text display on iOS
       const cleanData = this.stripAnsiAndControl(data);
       if (cleanData) {
@@ -429,14 +433,6 @@ export class ClaudeService implements OnModuleInit {
         });
       }
 
-      // Check for "Missing API key" message - prompt user to login
-      if (cleanData.includes('Missing API key') || cleanData.includes('Run /login')) {
-        this.logger.log('Detected Missing API key message - auth required');
-        emitter.emit('output', {
-          type: 'login_interactive',
-          content: 'Type /login to authenticate with Claude',
-        });
-      }
 
       // Check for successful authentication
       if (cleanData.includes('Successfully authenticated') ||
