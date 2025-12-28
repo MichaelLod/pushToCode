@@ -401,6 +401,7 @@ export class ClaudeService implements OnModuleInit {
         ...process.env,
         TERM: 'xterm-256color',
         FORCE_COLOR: '1',
+        IS_SANDBOX: '1',  // Auto-accept bypass permissions confirmation
       },
     });
 
