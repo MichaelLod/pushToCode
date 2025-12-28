@@ -61,11 +61,11 @@ RUN chmod +x /docker-entrypoint.sh
 # Set ownership for app directory
 RUN chown -R claude:claude /app
 
-# Switch to non-root user (required for --dangerously-skip-permissions)
-USER claude
+# Install gosu for dropping privileges after fixing permissions
+RUN apk add --no-cache gosu
 
 # Expose the application port
 EXPOSE 3000
 
-# Start with entrypoint (clones settings, then starts app)
+# Start with entrypoint (fixes permissions, then drops to claude user)
 ENTRYPOINT ["/docker-entrypoint.sh"]

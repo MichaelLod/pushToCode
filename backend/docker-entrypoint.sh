@@ -3,8 +3,11 @@
 # Claude config stored in /repos/.claude for persistence (same volume as repos)
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-/repos/.claude}"
 
-# Ensure Claude config directory exists (volume may be empty on first run)
+# Fix permissions on mounted volume (runs as root initially)
+echo "Fixing volume permissions..."
+chown -R claude:claude /repos
 mkdir -p "$CLAUDE_DIR"
+chown -R claude:claude "$CLAUDE_DIR"
 
 # Build settings repo URL with token if available
 if [ -n "$GITHUB_TOKEN" ]; then
@@ -65,5 +68,5 @@ else
   echo "No auth configured. Claude will prompt for OAuth login on first use."
 fi
 
-echo "Starting application..."
-exec node dist/main
+echo "Starting application as claude user..."
+exec gosu claude node dist/main
