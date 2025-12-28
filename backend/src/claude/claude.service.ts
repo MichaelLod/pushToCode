@@ -409,12 +409,9 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid}`);
 
     ptyProcess.onData((data: string) => {
-      // Strip ANSI codes since iOS can't render them, otherwise pass through raw
-      const cleanData = this.stripAnsiAndControl(data);
-      if (cleanData.trim()) {
-        this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 200)}`);
-        emitter.emit('pty_output', cleanData);
-      }
+      // Send raw PTY data - SwiftTerm on iOS will render ANSI codes properly
+      this.logger.log(`Session ${sessionId} PTY: ${data.substring(0, 100).replace(/\x1b/g, '\\e')}`);
+      emitter.emit('pty_output', data);
     });
 
     ptyProcess.onExit(({ exitCode }) => {

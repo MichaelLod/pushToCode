@@ -18,19 +18,20 @@ struct TerminalView: View {
 
             Divider()
 
-            // Content Area: Messages, Loading, or Empty State
-            if viewModel.isStartingSession && viewModel.session.messages.isEmpty {
-                startingSessionView
-            } else if viewModel.session.messages.isEmpty {
+            // Content Area: Terminal or Empty State
+            if viewModel.session.projectPath == nil {
                 emptyStateView
+
+                Divider()
+
+                // Input Area only shown when no project selected
+                inputArea
             } else {
-                messagesListView
+                // Full terminal view with SwiftTerm - handles its own keyboard
+                SwiftTerminalView(viewModel: viewModel)
+                    .background(Color.black)
+                    .ignoresSafeArea(.keyboard)
             }
-
-            Divider()
-
-            // Input Area (always at bottom)
-            inputArea
         }
         .background(Color(.systemBackground))
         .onAppear {

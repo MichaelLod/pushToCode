@@ -238,35 +238,14 @@ final class TerminalViewModel: ObservableObject {
     private func handlePtyOutput(_ message: ServerMessage) {
         guard let content = message.content, !content.isEmpty else { return }
 
-        // Filter out noise - skip lines that are just escape sequences or single chars
-        let cleanContent = content
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Pass raw PTY output directly - SwiftTerm will handle ANSI codes
+        ptyOutput = content
+    }
 
-        // Skip empty or noise-only content
-        let isNoise = cleanContent.isEmpty ||
-            cleanContent.allSatisfy { $0 == "|" || $0 == " " || $0 == "\n" } ||
-            cleanContent.hasPrefix("[?") ||
-            (cleanContent.count < 3 && !cleanContent.contains(where: { $0.isLetter }))
-
-        guard !isNoise else { return }
-
-        // Append to PTY output buffer
-        ptyOutput += cleanContent + "\n"
-
-        // Append to last message if it's also PTY output, otherwise create new
-        if let lastMessage = session.messages.last,
-           lastMessage.role == .assistant,
-           !lastMessage.isFinal {
-            session.appendToLastMessage("\n" + cleanContent)
-        } else {
-            let ptyMessage = Message(
-                role: .assistant,
-                content: cleanContent,
-                outputType: .text,
-                isFinal: false
-            )
-            session.addMessage(ptyMessage)
-        }
+    /// Send raw input directly to PTY (used by SwiftTerm)
+    func sendRawInput(_ input: String) {
+        guard !input.isEmpty else { return }
+        webSocketService.sendPtyInput(input, sessionId: session.id)
     }
 
     private func handleLoginInteractive(_ message: ServerMessage) {
