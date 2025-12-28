@@ -411,9 +411,22 @@ struct MessageRow: View {
     private var contentView: some View {
         switch message.outputType {
         case .text:
-            Text(message.content)
-                .font(.body)
-                .textSelection(.enabled)
+            if message.role == .assistant {
+                // Terminal-style output for Claude
+                Text(message.content)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundColor(.primary)
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+            } else {
+                // User messages - normal style
+                Text(message.content)
+                    .font(.body)
+                    .textSelection(.enabled)
+            }
 
         case .codeBlock:
             ScrollView(.horizontal, showsIndicators: false) {
