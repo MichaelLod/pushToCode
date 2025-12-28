@@ -142,8 +142,8 @@ export class ClaudeService implements OnModuleInit {
       let output = '';
       let foundUrl: string | null = null;
 
-      // Use pseudo-terminal for interactive setup-token command
-      const ptyProcess = pty.spawn('claude', ['setup-token'], {
+      // Use pseudo-terminal for interactive login via setup-token
+      const ptyProcess = pty.spawn('claude', ['login'], {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
@@ -158,6 +158,8 @@ export class ClaudeService implements OnModuleInit {
       this.loginPtyProcess = ptyProcess;
       this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
 
+      let readyForCode = false;
+
       ptyProcess.onData((data: string) => {
         output += data;
         // Strip ANSI escape codes for logging
@@ -166,11 +168,22 @@ export class ClaudeService implements OnModuleInit {
           this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
         }
 
+        // Check if CLI is ready to receive the auth code
+        if (cleanData.includes('Paste your') ||
+            cleanData.includes('Enter the code') ||
+            cleanData.includes('paste the code') ||
+            cleanData.includes('authorization code')) {
+          this.logger.log('PTY is ready for auth code input');
+          readyForCode = true;
+        }
+
         const url = this.extractAuthUrl(data);
         if (url && !foundUrl) {
           foundUrl = url;
           this.pendingAuthUrl = url;
           this.logger.log(`Found auth URL: ${url}`);
+          // After finding URL, assume we'll be ready for code soon
+          readyForCode = true;
           resolve({ url, emitter });
         }
 
@@ -178,8 +191,8 @@ export class ClaudeService implements OnModuleInit {
         if (cleanData.includes('Successfully authenticated') ||
             cleanData.includes('Authentication successful') ||
             cleanData.includes('logged in') ||
-            cleanData.includes('success') ||
-            cleanData.includes('Logged in as')) {
+            cleanData.includes('Logged in as') ||
+            cleanData.includes('Welcome back')) {
           this.logger.log('Authentication successful!');
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
@@ -189,7 +202,8 @@ export class ClaudeService implements OnModuleInit {
         // Check for error messages
         if (cleanData.includes('OAuth error') ||
             cleanData.includes('Invalid code') ||
-            cleanData.includes('expired')) {
+            cleanData.includes('expired') ||
+            cleanData.includes('try again')) {
           this.logger.warn(`Auth error detected: ${cleanData.substring(0, 100)}`);
           emitter.emit('auth_failed', cleanData);
         }
