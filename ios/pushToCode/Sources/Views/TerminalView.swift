@@ -142,11 +142,25 @@ struct TerminalView: View {
                         MessageRow(message: message)
                             .id(message.id)
                     }
+
+                    // Show thinking indicator when Claude is processing
+                    if viewModel.session.status == .running {
+                        ThinkingIndicatorRow()
+                            .id("thinking")
+                    }
                 }
                 .padding()
             }
             .onChange(of: viewModel.session.messages.count) { _ in
                 scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: viewModel.session.status) { status in
+                if status == .running {
+                    // Scroll to thinking indicator
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("thinking", anchor: .bottom)
+                    }
+                }
             }
             .onAppear {
                 scrollProxy = proxy
@@ -275,6 +289,61 @@ struct AuthCodeInputView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Thinking Indicator Row
+
+struct ThinkingIndicatorRow: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Avatar
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.purple)
+                .frame(width: 32, height: 32)
+                .background(Color.purple.opacity(0.2))
+                .cornerRadius(8)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Role label
+                Text("Claude")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+
+                // Animated thinking dots
+                HStack(spacing: 6) {
+                    ForEach(0..<3) { index in
+                        Circle()
+                            .fill(Color.purple)
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(isAnimating ? 1.0 : 0.6)
+                            .opacity(isAnimating ? 1.0 : 0.4)
+                            .animation(
+                                .easeInOut(duration: 0.6)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.2),
+                                value: isAnimating
+                            )
+                    }
+                    Text("Thinking...")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .italic()
+                }
+                .padding(.vertical, 8)
+            }
+
+            Spacer()
+        }
+        .onAppear {
+            isAnimating = true
+        }
+        .accessibilityLabel("Claude is thinking")
     }
 }
 
