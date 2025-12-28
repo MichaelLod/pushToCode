@@ -136,6 +136,10 @@ final class TerminalViewModel: ObservableObject {
         case .error:
             errorMessage = message.message ?? "Unknown error"
             session.status = .idle
+            // Reset auth state if this was an auth error
+            if message.code == "AUTH_FAILED" || message.code == "CODE_SUBMIT_FAILED" {
+                isSubmittingAuthCode = false
+            }
 
         case .ping:
             // Server ping - respond with pong to keep connection alive
@@ -154,7 +158,25 @@ final class TerminalViewModel: ObservableObject {
 
         case .authSuccess:
             handleAuthSuccess()
+
+        case .authFailed:
+            handleAuthFailed(message)
         }
+    }
+
+    private func handleAuthFailed(_ message: ServerMessage) {
+        isSubmittingAuthCode = false
+        let reason = message.message ?? "Authentication failed"
+        errorMessage = reason
+
+        // Keep the code input open so user can retry
+        let errorMsg = Message(
+            role: .assistant,
+            content: "Authentication failed: \(reason). Please try again.",
+            outputType: .text,
+            isFinal: true
+        )
+        session.addMessage(errorMsg)
     }
 
     private func handleAuthSuccess() {

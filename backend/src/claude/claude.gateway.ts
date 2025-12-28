@@ -357,6 +357,25 @@ export class ClaudeGateway
     }
 
     try {
+      // Get the login emitter to listen for auth events
+      const loginEmitter = this.claudeService.getLoginEmitter();
+      if (loginEmitter) {
+        // Set up listeners (they may already exist, but adding more is fine)
+        loginEmitter.on('auth_success', () => {
+          this.logger.log('Auth success after code submission');
+          this.sendMessage(client, {
+            type: 'auth_success',
+            sessionId: '',
+            message: 'Successfully authenticated with Claude!',
+          });
+        });
+
+        loginEmitter.on('auth_failed', (reason: string) => {
+          this.logger.log(`Auth failed after code submission: ${reason}`);
+          this.sendError(client, '', 'AUTH_FAILED', reason);
+        });
+      }
+
       const success = await this.claudeService.submitAuthCode(code);
 
       if (success) {

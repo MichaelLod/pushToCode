@@ -43,6 +43,7 @@ enum ServerMessageType: String, Codable {
     case authRequired = "auth_required"
     case authSuccess = "auth_success"
     case authCodeSubmitted = "auth_code_submitted"
+    case authFailed = "auth_failed"
 }
 
 struct SubmitAuthCodeMessage: Codable {
