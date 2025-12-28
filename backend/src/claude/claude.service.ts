@@ -142,16 +142,20 @@ export class ClaudeService implements OnModuleInit {
       let output = '';
       let foundUrl: string | null = null;
 
-      // Use pseudo-terminal for interactive login via setup-token
+      // Use pseudo-terminal for interactive login
+      // Try CI=true and TERM=dumb to skip interactive onboarding prompts
       const ptyProcess = pty.spawn('claude', ['login'], {
-        name: 'xterm-256color',
+        name: 'dumb',
         cols: 120,
         rows: 30,
         cwd: '/tmp',
         env: {
           ...process.env,
-          FORCE_COLOR: '1',
-          TERM: 'xterm-256color',
+          CI: 'true',           // May skip interactive prompts
+          CLAUDE_CI: 'true',    // Claude-specific CI flag
+          FORCE_COLOR: '0',     // Disable colors in CI mode
+          TERM: 'dumb',         // Non-interactive terminal
+          NO_COLOR: '1',        // Disable colors
         },
       });
 
