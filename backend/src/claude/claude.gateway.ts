@@ -244,12 +244,28 @@ export class ClaudeGateway
               });
             });
 
-            this.sendMessage(client, {
-              type: 'auth_required',
-              sessionId,
-              authUrl: authUrl || '',
-              message: 'Please authenticate with Claude to continue.',
+            loginEmitter.on('auth_failed', (reason: string) => {
+              this.logger.log(`Auth failed during execute: ${reason}`);
+              this.sendError(client, sessionId, 'AUTH_FAILED', reason);
             });
+
+            // Only send auth_required if we actually got a URL
+            if (authUrl) {
+              this.sendMessage(client, {
+                type: 'auth_required',
+                sessionId,
+                authUrl: authUrl,
+                message: 'Please authenticate with Claude to continue.',
+              });
+            } else {
+              this.logger.warn('Login did not return auth URL - onboarding may be stuck');
+              this.sendError(
+                client,
+                sessionId,
+                'AUTH_SETUP_FAILED',
+                'Could not get authentication URL. The CLI may need manual setup.',
+              );
+            }
           } else {
             this.sendMessage(client, {
               type: 'auth_required',

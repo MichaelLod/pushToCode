@@ -160,6 +160,8 @@ export class ClaudeService implements OnModuleInit {
 
       let readyForCode = false;
       let authSuccessEmitted = false;
+      let killedByTimeout = false;
+      let lastEnterPress = 0;
 
       ptyProcess.onData((data: string) => {
         output += data;
@@ -177,17 +179,31 @@ export class ClaudeService implements OnModuleInit {
           cleanData.includes('Choose the text style') ||
           cleanData.includes('Let\'s get started') ||
           cleanData.includes('Welcome to Claude') ||
-          cleanData.includes('Press Enter to continue') ||
-          /[❯>]\s*\d+\..*mode/i.test(cleanData)  // Menu selection for modes
+          cleanData.includes('Press Enter') ||
+          cleanData.includes('telemetry') ||
+          cleanData.includes('analytics') ||
+          /[❯>]\s*\d+\./i.test(cleanData)  // Any numbered menu selection
         );
         const isAuthCodePrompt = (
           cleanData.includes('Paste your') ||
           cleanData.includes('Enter the code') ||
-          cleanData.includes('authorization code')
+          cleanData.includes('authorization code') ||
+          cleanData.includes('authenticate') ||
+          cleanData.includes('console.anthropic.com')
         );
-        if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode) {
-          this.logger.log('Detected onboarding prompt, pressing Enter to continue');
-          setTimeout(() => ptyProcess.write('\n'), 500);
+
+        // Debounce Enter presses (at least 2 seconds between presses)
+        const now = Date.now();
+        if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 2000)) {
+          this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
+          lastEnterPress = now;
+          // Send \r\n for maximum compatibility with terminal menus
+          setTimeout(() => {
+            if (this.loginPtyProcess === ptyProcess) {
+              this.logger.log('Sending Enter key to PTY');
+              ptyProcess.write('\r\n');
+            }
+          }, 1000);
         }
 
         // Check if CLI is ready to receive the auth code
@@ -231,10 +247,21 @@ export class ClaudeService implements OnModuleInit {
       });
 
       ptyProcess.onExit(({ exitCode }) => {
-        this.logger.log(`PTY login process exited with code ${exitCode}`);
+        this.logger.log(`PTY login process exited with code ${exitCode}, killedByTimeout: ${killedByTimeout}`);
         this.loginPtyProcess = null;
-        if (exitCode === 0 && !authSuccessEmitted) {
-          // Only emit if we haven't already detected success from output
+
+        // Don't emit auth_success if we killed it due to timeout
+        if (killedByTimeout) {
+          this.logger.log('Process was killed by timeout, not emitting auth_success');
+          if (!foundUrl) {
+            resolve({ url: null, emitter });
+          }
+          return;
+        }
+
+        if (exitCode === 0 && !authSuccessEmitted && foundUrl) {
+          // Only emit success if we found a URL and completed auth
+          this.logger.log('Authentication successful based on exit code 0');
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
           authSuccessEmitted = true;
@@ -248,15 +275,16 @@ export class ClaudeService implements OnModuleInit {
         }
       });
 
-      // Timeout after 30 seconds for URL (longer to handle onboarding prompts)
+      // Timeout after 60 seconds for URL (longer to handle onboarding prompts)
       setTimeout(() => {
         if (!foundUrl) {
           this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
+          killedByTimeout = true;
           ptyProcess.kill();
           this.loginPtyProcess = null;
           resolve({ url: null, emitter });
         }
-      }, 30000);
+      }, 60000);
     });
   }
 
