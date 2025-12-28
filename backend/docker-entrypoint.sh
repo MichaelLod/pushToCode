@@ -1,7 +1,10 @@
 #!/bin/sh
 
-# Use home directory appropriate for current user (non-root)
-CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
+# Claude config stored in /repos/.claude for persistence (same volume as repos)
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-/repos/.claude}"
+
+# Ensure Claude config directory exists (volume may be empty on first run)
+mkdir -p "$CLAUDE_DIR"
 
 # Build settings repo URL with token if available
 if [ -n "$GITHUB_TOKEN" ]; then

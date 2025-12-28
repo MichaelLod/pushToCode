@@ -29,23 +29,18 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (Claude CLI blocks --dangerously-skip-permissions as root)
 RUN addgroup -g 1001 claude && adduser -D -u 1001 -G claude claude
 
-# Create repos directory for volume mount
-RUN mkdir -p /repos && chown claude:claude /repos
-
-# Create .claude directory for credential persistence
-# Mount this as a volume to persist auth: -v claude-auth:/home/claude/.claude
-RUN mkdir -p /home/claude/.claude && chown -R claude:claude /home/claude
+# Create repos directory for volume mount (also stores Claude config)
+RUN mkdir -p /repos/.claude && chown -R claude:claude /repos
 
 # Set default repos path (can be overridden with -e REPOS_PATH=...)
 ENV REPOS_PATH=/repos
 
-# Set Claude home for credential storage
-ENV CLAUDE_CONFIG_DIR=/home/claude/.claude
+# Set Claude config dir inside repos for persistence (same volume)
+ENV CLAUDE_CONFIG_DIR=/repos/.claude
 
-# Authentication: Set CLAUDE_CODE_OAUTH_TOKEN environment variable
-# Get your token by running locally:
-#   security find-generic-password -s "Claude Code-credentials" -w | jq -r '.claudeAiOauth.accessToken'
-# Then pass to Docker: -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+# Authentication: Claude will prompt for OAuth login on first use
+# The auth URL will be sent to the iOS app for browser-based login
+# Credentials persist in /repos/.claude (same volume as repos)
 
 # Set Node.js memory limit to 16GB
 ENV NODE_OPTIONS="--max-old-space-size=16384"
