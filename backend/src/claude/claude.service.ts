@@ -142,20 +142,16 @@ export class ClaudeService implements OnModuleInit {
       let output = '';
       let foundUrl: string | null = null;
 
-      // Use pseudo-terminal for interactive login
-      // Try CI=true and TERM=dumb to skip interactive onboarding prompts
+      // Use pseudo-terminal for interactive login with proper terminal emulation
       const ptyProcess = pty.spawn('claude', ['login'], {
-        name: 'dumb',
+        name: 'xterm-256color',
         cols: 120,
         rows: 30,
         cwd: '/tmp',
         env: {
           ...process.env,
-          CI: 'true',           // May skip interactive prompts
-          CLAUDE_CI: 'true',    // Claude-specific CI flag
-          FORCE_COLOR: '0',     // Disable colors in CI mode
-          TERM: 'dumb',         // Non-interactive terminal
-          NO_COLOR: '1',        // Disable colors
+          TERM: 'xterm-256color',
+          FORCE_COLOR: '1',
         },
       });
 
@@ -196,18 +192,18 @@ export class ClaudeService implements OnModuleInit {
           cleanData.includes('console.anthropic.com')
         );
 
-        // Debounce Enter presses (at least 2 seconds between presses)
+        // Debounce Enter presses (at least 1 second between presses)
         const now = Date.now();
-        if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 2000)) {
+        if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
           this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
           lastEnterPress = now;
-          // Send \r\n for maximum compatibility with terminal menus
+          // Send just \r (carriage return) - this is what terminals send for Enter
           setTimeout(() => {
             if (this.loginPtyProcess === ptyProcess) {
-              this.logger.log('Sending Enter key to PTY');
-              ptyProcess.write('\r\n');
+              this.logger.log('Sending Enter key (\\r) to PTY');
+              ptyProcess.write('\r');
             }
-          }, 1000);
+          }, 500);
         }
 
         // Check if CLI is ready to receive the auth code
