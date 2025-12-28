@@ -541,6 +541,9 @@ export class ClaudeService implements OnModuleInit {
   }
 
   private extractAuthUrl(content: string): string | null {
+    // First strip ANSI escape codes from the content
+    const cleanContent = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
     // Match various OAuth/login URL patterns
     const urlPatterns = [
       // Direct URL on its own line
@@ -554,13 +557,17 @@ export class ClaudeService implements OnModuleInit {
     ];
 
     for (const pattern of urlPatterns) {
-      const match = content.match(pattern);
+      const match = cleanContent.match(pattern);
       if (match) {
-        // Clean up the URL (remove trailing punctuation)
-        let url = match[0].replace(/[.,;:!?)"'\]]+$/, '');
+        // Clean up the URL (remove trailing punctuation and any remaining escape chars)
+        let url = match[0]
+          .replace(/[.,;:!?)"'\]]+$/, '')
+          .replace(/[\x00-\x1f\x7f-\x9f]/g, ''); // Remove any control characters
         // If pattern has capture group, use that
         if (match[1]) {
-          url = match[1].replace(/[.,;:!?)"'\]]+$/, '');
+          url = match[1]
+            .replace(/[.,;:!?)"'\]]+$/, '')
+            .replace(/[\x00-\x1f\x7f-\x9f]/g, '');
         }
         // Only return if it's a valid URL
         if (url.startsWith('https://')) {
