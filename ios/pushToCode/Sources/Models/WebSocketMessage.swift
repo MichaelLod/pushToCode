@@ -41,6 +41,13 @@ enum ServerMessageType: String, Codable {
     case ping
     case pong
     case authRequired = "auth_required"
+    case authSuccess = "auth_success"
+    case authCodeSubmitted = "auth_code_submitted"
+}
+
+struct SubmitAuthCodeMessage: Codable {
+    var type: String = "submit_auth_code"
+    let code: String
 }
 
 struct ServerMessage: Codable {

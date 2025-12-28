@@ -10,6 +10,9 @@ final class TerminalViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var authUrl: URL?
     @Published var showAuthAlert = false
+    @Published var showAuthCodeInput = false
+    @Published var authCode: String = ""
+    @Published var isSubmittingAuthCode = false
 
     private let webSocketService = WebSocketService.shared
     private let settingsManager = SettingsManager.shared
@@ -144,7 +147,29 @@ final class TerminalViewModel: ObservableObject {
 
         case .authRequired:
             handleAuthRequired(message)
+
+        case .authCodeSubmitted:
+            // Code received, waiting for verification
+            isSubmittingAuthCode = true
+
+        case .authSuccess:
+            handleAuthSuccess()
         }
+    }
+
+    private func handleAuthSuccess() {
+        isSubmittingAuthCode = false
+        showAuthCodeInput = false
+        authCode = ""
+        authUrl = nil
+
+        let successMessage = Message(
+            role: .assistant,
+            content: "Successfully authenticated with Claude! You can now send prompts.",
+            outputType: .text,
+            isFinal: true
+        )
+        session.addMessage(successMessage)
     }
 
     private func handleAuthRequired(_ message: ServerMessage) {
@@ -170,6 +195,22 @@ final class TerminalViewModel: ObservableObject {
     func openAuthUrl() {
         guard let url = authUrl else { return }
         UIApplication.shared.open(url)
+        // Show code input after opening browser
+        showAuthCodeInput = true
+    }
+
+    func submitAuthCode() {
+        let code = authCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return }
+
+        isSubmittingAuthCode = true
+        webSocketService.submitAuthCode(code)
+    }
+
+    func cancelAuthCodeInput() {
+        showAuthCodeInput = false
+        authCode = ""
+        isSubmittingAuthCode = false
     }
 
     private func handleOutput(_ message: ServerMessage) {

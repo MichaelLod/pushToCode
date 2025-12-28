@@ -68,7 +68,10 @@ struct TerminalView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Claude needs you to log in. Tap 'Open Browser' to authenticate, then try your request again.")
+            Text("Claude needs you to log in. Tap 'Open Browser' to authenticate.")
+        }
+        .sheet(isPresented: $viewModel.showAuthCodeInput) {
+            AuthCodeInputView(viewModel: viewModel)
         }
     }
 
@@ -203,6 +206,74 @@ struct TerminalView: View {
         guard let lastMessage = viewModel.session.messages.last else { return }
         withAnimation(.easeOut(duration: 0.2)) {
             proxy.scrollTo(lastMessage.id, anchor: .bottom)
+        }
+    }
+}
+
+// MARK: - Auth Code Input View
+
+struct AuthCodeInputView: View {
+    @ObservedObject var viewModel: TerminalViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                Image(systemName: "key.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+
+                Text("Enter Authentication Code")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text("Copy the code from the browser and paste it below")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                TextField("Paste code here...", text: $viewModel.authCode)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .padding(.horizontal)
+
+                if viewModel.isSubmittingAuthCode {
+                    HStack {
+                        ProgressView()
+                        Text("Verifying...")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Button {
+                    viewModel.submitAuthCode()
+                } label: {
+                    Text("Submit Code")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(viewModel.authCode.isEmpty ? Color.gray : Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .disabled(viewModel.authCode.isEmpty || viewModel.isSubmittingAuthCode)
+                .padding(.horizontal)
+
+                Spacer()
+            }
+            .padding(.top, 40)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        viewModel.cancelAuthCodeInput()
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

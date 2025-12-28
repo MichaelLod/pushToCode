@@ -143,6 +143,11 @@ final class WebSocketService: NSObject, ObservableObject {
         send(message)
     }
 
+    func submitAuthCode(_ code: String) {
+        let message = SubmitAuthCodeMessage(code: code)
+        send(message)
+    }
+
     // MARK: - Message Receiving
 
     private func receiveMessage() {
