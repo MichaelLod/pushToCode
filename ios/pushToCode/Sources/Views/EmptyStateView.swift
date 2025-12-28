@@ -51,22 +51,28 @@ struct PromptCard: Identifiable {
 
     static let suggestions: [PromptCard] = [
         PromptCard(
-            title: "Fix a bug",
-            description: "Find and fix errors in the code",
-            prompt: "Help me find and fix bugs in this code",
-            icon: "ladybug"
+            title: "Strategic Advisor",
+            description: "Plan your next implementation step",
+            prompt: "@strat",
+            icon: "lightbulb"
         ),
         PromptCard(
-            title: "Add a feature",
-            description: "Implement new functionality",
-            prompt: "Help me add a new feature",
-            icon: "plus.circle"
+            title: "Debug Detective",
+            description: "Investigate bugs with root cause analysis",
+            prompt: "@debug",
+            icon: "magnifyingglass"
         ),
         PromptCard(
-            title: "Refactor",
-            description: "Improve code structure",
-            prompt: "Help me refactor this code to improve its structure",
-            icon: "arrow.triangle.2.circlepath"
+            title: "Business Mentor",
+            description: "Analyze viability and market fit",
+            prompt: "@mentor",
+            icon: "chart.line.uptrend.xyaxis"
+        ),
+        PromptCard(
+            title: "Codebase Patrol",
+            description: "Audit for issues and tech debt",
+            prompt: "@patrol",
+            icon: "shield.checkered"
         )
     ]
 }
