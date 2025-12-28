@@ -216,7 +216,7 @@ export class ClaudeGateway
         projectPath,
       );
 
-      emitter.on('output', (output: ClaudeOutput) => {
+      emitter.on('output', async (output: ClaudeOutput) => {
         if (output.type === 'output') {
           this.sendMessage(client, {
             type: 'output',
