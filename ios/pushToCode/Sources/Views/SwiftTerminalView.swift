@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftTerm
+import Combine
+import UIKit
 
 /// UIKit wrapper for SwiftTerm's TerminalView connected to WebSocket
-class WebSocketTerminal: TerminalView, TerminalViewDelegate {
+class WebSocketTerminal: SwiftTerm.TerminalView, TerminalViewDelegate {
     private var onInput: ((String) -> Void)?
 
     init(frame: CGRect, onInput: @escaping (String) -> Void) {
@@ -113,5 +115,3 @@ struct SwiftTerminalView: UIViewRepresentable {
         }
     }
 }
-
-import Combine

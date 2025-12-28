@@ -30,7 +30,6 @@ struct TerminalView: View {
                 // Full terminal view with SwiftTerm - handles its own keyboard
                 SwiftTerminalView(viewModel: viewModel)
                     .background(Color.black)
-                    .ignoresSafeArea(.keyboard)
             }
         }
         .background(Color(.systemBackground))
