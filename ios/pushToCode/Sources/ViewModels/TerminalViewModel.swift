@@ -238,8 +238,8 @@ final class TerminalViewModel: ObservableObject {
     private func handlePtyOutput(_ message: ServerMessage) {
         guard let content = message.content, !content.isEmpty else { return }
 
-        // Pass raw PTY output directly - SwiftTerm will handle ANSI codes
-        ptyOutput = content
+        // Accumulate PTY output for terminal display
+        ptyOutput += content
     }
 
     /// Send raw input directly to PTY (used by SwiftTerm)

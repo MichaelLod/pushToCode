@@ -14,6 +14,7 @@
 		3C7F0B29DD518FBFD82B1725 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = E958A674FC15A43C99D4DE77 /* Session.swift */; };
 		45B2E12EAE27FE69837E5D5D /* TerminalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBA0E8DE81A268EC777867C /* TerminalViewModel.swift */; };
 		4CC4345CBC583C90DAA59FF6 /* RepoManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 624B175FC7799D296942CD91 /* RepoManagerView.swift */; };
+		4CCFA85B2F016534006AAB2F /* SwiftTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCFA85A2F016534006AAB2F /* SwiftTerminalView.swift */; };
 		567357C31847D000FDE8B306 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36FD2E20793A2AECC778EA5 /* Project.swift */; };
 		63DEA8DC464E4635855F3F0A /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = E21FDFA27D11437BBA2E8902 /* Message.swift */; };
 		684CF53B154D011062F9F7EF /* pushToCodeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7447280D9B81EBAAD0C1CF /* pushToCodeApp.swift */; };
@@ -39,6 +40,7 @@
 		22222222222222222222BBB3 /* ProjectSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSelectionView.swift; sourceTree = "<group>"; };
 		37F066FD591B787602E4A507 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		3D294DAF6BC966D01B85B867 /* ProjectPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPickerView.swift; sourceTree = "<group>"; };
+		4CCFA85A2F016534006AAB2F /* SwiftTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftTerminalView.swift; sourceTree = "<group>"; };
 		5B8F2B10A579AAAB7200F5E6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		624B175FC7799D296942CD91 /* RepoManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepoManagerView.swift; sourceTree = "<group>"; };
 		6D406FAF5FAFFF2BB7DADECB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -83,6 +85,13 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		4CCFA85C2F0165A7006AAB2F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		4CFD264E71636D69B40A858E = {
 			isa = PBXGroup;
 			children = (
@@ -90,6 +99,7 @@
 				6D543D603501C18010E2005C /* Resources */,
 				4DEB334DEE868EEAF3F8C261 /* Sources */,
 				BC72C19637BE7098BCA5848C /* Products */,
+				4CCFA85C2F0165A7006AAB2F /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -128,6 +138,7 @@
 		C4644ADA719508532C19AF71 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4CCFA85A2F016534006AAB2F /* SwiftTerminalView.swift */,
 				22222222222222222222BBB1 /* ConnectionStatusView.swift */,
 				22222222222222222222BBB2 /* EmptyStateView.swift */,
 				3D294DAF6BC966D01B85B867 /* ProjectPickerView.swift */,
@@ -191,6 +202,8 @@
 			name = pushToCode;
 			packageProductDependencies = (
 				4CCFA8592F0163D9006AAB2F /* SwiftTerm */,
+				4CCFA85D2F0165AC006AAB2F /* SwiftTermFuzz */,
+				4CCFA85E2F0165BD006AAB2F /* termcast */,
 			);
 			productName = pushToCode;
 			productReference = 6FF237E945334578D251596F /* pushToCode.app */;
@@ -254,6 +267,7 @@
 				567357C31847D000FDE8B306 /* Project.swift in Sources */,
 				BCEE2B6CD3A0B98A05BD81C4 /* ProjectPickerView.swift in Sources */,
 				11111111111111111111AAA3 /* ProjectSelectionView.swift in Sources */,
+				4CCFA85B2F016534006AAB2F /* SwiftTerminalView.swift in Sources */,
 				4CC4345CBC583C90DAA59FF6 /* RepoManagerView.swift in Sources */,
 				E4EF26DD487569A9D593ECDF /* ReposService.swift in Sources */,
 				3C7F0B29DD518FBFD82B1725 /* Session.swift in Sources */,
@@ -483,6 +497,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4CCFA8582F0163D9006AAB2F /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		4CCFA85D2F0165AC006AAB2F /* SwiftTermFuzz */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4CCFA8582F0163D9006AAB2F /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTermFuzz;
+		};
+		4CCFA85E2F0165BD006AAB2F /* termcast */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4CCFA8582F0163D9006AAB2F /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = termcast;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

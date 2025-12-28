@@ -19,18 +19,19 @@ struct TerminalView: View {
             Divider()
 
             // Content Area: Terminal or Empty State
-            if viewModel.session.projectPath == nil {
+            if viewModel.isStartingSession && viewModel.session.messages.isEmpty {
+                startingSessionView
+            } else if viewModel.session.projectPath == nil {
                 emptyStateView
-
-                Divider()
-
-                // Input Area only shown when no project selected
-                inputArea
             } else {
-                // Full terminal view with SwiftTerm - handles its own keyboard
-                SwiftTerminalView(viewModel: viewModel)
-                    .background(Color.black)
+                // Terminal-style output view
+                terminalOutputView
             }
+
+            Divider()
+
+            // Input Area (always at bottom)
+            inputArea
         }
         .background(Color(.systemBackground))
         .onAppear {
@@ -156,6 +157,27 @@ struct TerminalView: View {
         }
     }
 
+    // MARK: - Terminal Output View
+
+    private var terminalOutputView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                Text(viewModel.ptyOutput)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .id("terminal-output")
+            }
+            .background(Color.black)
+            .onChange(of: viewModel.ptyOutput) { _ in
+                withAnimation(.easeOut(duration: 0.1)) {
+                    proxy.scrollTo("terminal-output", anchor: .bottom)
+                }
+            }
+        }
+    }
+
     // MARK: - Messages List View
 
     private var messagesListView: some View {
@@ -195,7 +217,45 @@ struct TerminalView: View {
     // MARK: - Input Area
 
     private var inputArea: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 8) {
+            // Terminal control buttons (arrow keys, escape, enter)
+            if viewModel.session.projectPath != nil {
+                HStack(spacing: 12) {
+                    // Escape key
+                    TerminalKeyButton(label: "ESC", systemImage: nil) {
+                        viewModel.sendRawInput("\u{1b}")  // Escape character
+                    }
+
+                    Spacer()
+
+                    // Arrow keys
+                    HStack(spacing: 8) {
+                        TerminalKeyButton(label: nil, systemImage: "arrow.up") {
+                            viewModel.sendRawInput("\u{1b}[A")  // Up arrow
+                        }
+                        TerminalKeyButton(label: nil, systemImage: "arrow.down") {
+                            viewModel.sendRawInput("\u{1b}[B")  // Down arrow
+                        }
+                        TerminalKeyButton(label: nil, systemImage: "arrow.left") {
+                            viewModel.sendRawInput("\u{1b}[D")  // Left arrow
+                        }
+                        TerminalKeyButton(label: nil, systemImage: "arrow.right") {
+                            viewModel.sendRawInput("\u{1b}[C")  // Right arrow
+                        }
+                    }
+
+                    Spacer()
+
+                    // Enter key
+                    TerminalKeyButton(label: "↵", systemImage: nil) {
+                        viewModel.sendRawInput("\r")  // Enter/Return
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
+            // Text input row
             HStack(spacing: 8) {
                 TextField("Type command or prompt...", text: $viewModel.inputText, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -205,34 +265,35 @@ struct TerminalView: View {
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(20)
 
-            // Mic button for dictation
-            Button {
-                showVoiceRecorder = true
-            } label: {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Color.blue)
-                    .clipShape(Circle())
-            }
-            .accessibilityLabel("Voice input")
+                // Mic button for dictation
+                Button {
+                    showVoiceRecorder = true
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel("Voice input")
 
-            // Send button
-            Button {
-                viewModel.sendPrompt(viewModel.inputText)
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(canSend ? Color.green : Color.gray.opacity(0.5))
-                    .clipShape(Circle())
+                // Send button
+                Button {
+                    viewModel.sendPrompt(viewModel.inputText)
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(canSend ? Color.green : Color.gray.opacity(0.5))
+                        .clipShape(Circle())
+                }
+                .disabled(!canSend)
+                .accessibilityLabel("Send")
             }
-            .disabled(!canSend)
-            .accessibilityLabel("Send")
-            }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
     }
 
@@ -313,6 +374,32 @@ struct AuthCodeInputView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Terminal Key Button
+
+struct TerminalKeyButton: View {
+    let label: String?
+    let systemImage: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let systemImage = systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 16, weight: .medium))
+                } else if let label = label {
+                    Text(label)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                }
+            }
+            .foregroundColor(.primary)
+            .frame(width: 40, height: 32)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(6)
         }
     }
 }
