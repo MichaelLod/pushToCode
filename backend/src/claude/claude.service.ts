@@ -419,38 +419,24 @@ export class ClaudeService implements OnModuleInit {
         emitter.emit('pty_output', cleanData);
       }
 
-      // Auto-handle onboarding and permission prompts
+      // Auto-handle onboarding prompts only (dark mode, text style setup)
+      // These are non-security prompts that just need Enter to accept defaults
       const isOnboardingPrompt = (
         cleanData.includes('Dark mode') ||
         cleanData.includes('Light mode') ||
         cleanData.includes('Choose the text style') ||
         cleanData.includes('Let\'s get started') ||
         cleanData.includes('Ready to code here') ||
-        cleanData.includes('Yes, continue') ||
-        /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)
-      );
-
-      // Auto-accept bypass permissions prompt
-      const isBypassPrompt = (
-        cleanData.includes('Bypass Permissions mode') ||
-        cleanData.includes('Yes, I accept') ||
-        cleanData.includes('accept all responsibility')
+        /[❯>]\s*\d+\.\s*(Dark|Light)/i.test(cleanData)
       );
 
       const now = Date.now();
-      if ((isOnboardingPrompt || isBypassPrompt) && (now - lastEnterPress > 1000)) {
-        this.logger.log(`Auto-accepting prompt: ${cleanData.substring(0, 100)}`);
+      if (isOnboardingPrompt && (now - lastEnterPress > 1000)) {
+        this.logger.log(`Auto-accepting onboarding prompt: ${cleanData.substring(0, 100)}`);
         lastEnterPress = now;
         setTimeout(() => {
           if (session.ptyProcess === ptyProcess) {
-            // For bypass prompt, select option 2 (Yes, I accept)
-            if (isBypassPrompt && cleanData.includes('1. No, exit')) {
-              this.logger.log('Selecting "Yes, I accept" for bypass permissions');
-              // Type "2" to select option 2
-              ptyProcess.write('2');
-            } else {
-              ptyProcess.write('\r');
-            }
+            ptyProcess.write('\r');
           }
         }, 500);
       }
