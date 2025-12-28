@@ -9,6 +9,7 @@ enum ClientMessageType: String, Codable {
     case ping
     case ptyInput = "pty_input"
     case login
+    case startInteractive = "start_interactive"
 }
 
 struct InitSessionMessage: Codable {
@@ -36,10 +37,17 @@ struct PongMessage: Codable {
 struct PtyInputMessage: Codable {
     var type: String = "pty_input"
     let input: String
+    let sessionId: String?
 }
 
 struct LoginMessage: Codable {
     var type: String = "login"
+}
+
+struct StartInteractiveMessage: Codable {
+    var type: String = "start_interactive"
+    let sessionId: String
+    let projectPath: String
 }
 
 // MARK: - Server to Client Messages
@@ -57,6 +65,7 @@ enum ServerMessageType: String, Codable {
     case authFailed = "auth_failed"
     case ptyOutput = "pty_output"
     case loginInteractive = "login_interactive"
+    case interactiveStarted = "interactive_started"
 }
 
 struct SubmitAuthCodeMessage: Codable {

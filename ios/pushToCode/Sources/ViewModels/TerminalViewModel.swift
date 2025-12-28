@@ -15,6 +15,7 @@ final class TerminalViewModel: ObservableObject {
     @Published var isSubmittingAuthCode = false
     @Published var isInteractiveMode = false
     @Published var ptyOutput: String = ""
+    @Published var isStartingSession = false
 
     private let webSocketService = WebSocketService.shared
     private let settingsManager = SettingsManager.shared
@@ -179,6 +180,9 @@ final class TerminalViewModel: ObservableObject {
 
         case .loginInteractive:
             handleLoginInteractive(message)
+
+        case .interactiveStarted:
+            handleInteractiveStarted(message)
         }
     }
 
@@ -283,6 +287,12 @@ final class TerminalViewModel: ObservableObject {
         session.addMessage(interactiveMessage)
     }
 
+    private func handleInteractiveStarted(_ message: ServerMessage) {
+        isStartingSession = false
+        isInteractiveMode = true
+        session.status = .running
+    }
+
     func sendPtyInput(_ input: String) {
         guard !input.isEmpty else { return }
 
@@ -290,8 +300,8 @@ final class TerminalViewModel: ObservableObject {
         let userMessage = Message(role: .user, content: input)
         session.addMessage(userMessage)
 
-        // Send input to PTY with newline
-        webSocketService.sendPtyInput(input + "\r")
+        // Send input to PTY with newline, include sessionId for session PTY
+        webSocketService.sendPtyInput(input + "\r", sessionId: session.id)
     }
 
     func triggerLogin() {
@@ -336,13 +346,23 @@ final class TerminalViewModel: ObservableObject {
         session.projectId = project.id
         session.projectPath = project.path
 
-        // Re-initialize session with new project
+        // Start interactive session with new project
         if isConnected {
-            webSocketService.initSession(
-                sessionId: session.id,
-                projectId: project.id
-            )
+            startInteractiveSession()
         }
+    }
+
+    func startInteractiveSession() {
+        guard let projectPath = session.projectPath else { return }
+
+        isStartingSession = true
+        session.status = .running
+        isInteractiveMode = true
+
+        webSocketService.startInteractiveSession(
+            sessionId: session.id,
+            projectPath: projectPath
+        )
     }
 
     func clearMessages() {

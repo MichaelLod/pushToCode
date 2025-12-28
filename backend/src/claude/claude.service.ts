@@ -19,6 +19,7 @@ interface SessionData {
   emitter: EventEmitter;
   projectPath: string;
   claudeSessionId?: string;  // Claude's internal session ID for --resume
+  ptyProcess?: pty.IPty;     // Interactive PTY process
 }
 
 @Injectable()
@@ -328,6 +329,136 @@ export class ClaudeService implements OnModuleInit {
       this.logger.error(`Failed to send PTY input: ${error.message}`);
       return false;
     }
+  }
+
+  // Send input to a session's interactive PTY
+  sendSessionPtyInput(sessionId: string, input: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session?.ptyProcess) {
+      this.logger.error(`No active PTY for session ${sessionId}`);
+      return false;
+    }
+
+    try {
+      this.logger.log(`Sending PTY input to session ${sessionId}: ${input.substring(0, 50)}`);
+      session.ptyProcess.write(input);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send PTY input: ${error.message}`);
+      return false;
+    }
+  }
+
+  // Start Claude CLI in interactive mode for a session
+  async startInteractiveSession(sessionId: string, projectPath: string): Promise<EventEmitter> {
+    this.logger.log(`Starting interactive session ${sessionId} for project: ${projectPath}`);
+
+    // Initialize or get existing session
+    let session = this.sessions.get(sessionId);
+    if (!session) {
+      const emitter = new EventEmitter();
+      session = {
+        process: null as any,
+        emitter,
+        projectPath,
+      };
+      this.sessions.set(sessionId, session);
+    }
+
+    // Kill existing PTY if running
+    if (session.ptyProcess) {
+      this.logger.log(`Killing existing PTY for session ${sessionId}`);
+      session.ptyProcess.kill();
+      session.ptyProcess = undefined;
+    }
+
+    const emitter = session.emitter;
+
+    // Check if we have a pending auth URL - if so, we need to login first
+    if (this.pendingAuthUrl) {
+      this.logger.log('Auth required, emitting auth_required event');
+      emitter.emit('output', {
+        type: 'auth_required',
+        content: 'Claude requires authentication',
+        authUrl: this.pendingAuthUrl,
+      });
+      return emitter;
+    }
+
+    // Spawn Claude CLI in interactive mode using PTY
+    const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
+      name: 'xterm-256color',
+      cols: 120,
+      rows: 30,
+      cwd: projectPath,
+      env: {
+        ...process.env,
+        TERM: 'xterm-256color',
+        FORCE_COLOR: '1',
+      },
+    });
+
+    session.ptyProcess = ptyProcess;
+    this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid}`);
+
+    let lastEnterPress = 0;
+
+    ptyProcess.onData((data: string) => {
+      // Strip ANSI escape codes for clean display
+      const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+      if (cleanData) {
+        this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 200)}`);
+      }
+
+      // Emit PTY output to client
+      emitter.emit('pty_output', cleanData);
+
+      // Auto-handle onboarding prompts
+      const isOnboardingPrompt = (
+        cleanData.includes('Dark mode') ||
+        cleanData.includes('Light mode') ||
+        cleanData.includes('Choose the text style') ||
+        cleanData.includes('Let\'s get started') ||
+        cleanData.includes('Ready to code here') ||
+        cleanData.includes('Yes, continue') ||
+        /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)
+      );
+
+      const now = Date.now();
+      if (isOnboardingPrompt && (now - lastEnterPress > 1000)) {
+        this.logger.log(`Auto-accepting onboarding prompt: ${cleanData.substring(0, 50)}`);
+        lastEnterPress = now;
+        setTimeout(() => {
+          if (session.ptyProcess === ptyProcess) {
+            ptyProcess.write('\r');
+          }
+        }, 300);
+      }
+
+      // Check for auth URL in output
+      const authUrl = this.extractAuthUrl(data);
+      if (authUrl) {
+        this.pendingAuthUrl = authUrl;
+        this.isAuthenticated = false;
+        emitter.emit('output', {
+          type: 'auth_required',
+          content: 'Claude requires authentication',
+          authUrl,
+        });
+      }
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+      this.logger.log(`Session ${sessionId} PTY exited with code ${exitCode}`);
+      session.ptyProcess = undefined;
+      emitter.emit('output', {
+        type: 'exit',
+        code: exitCode,
+        isFinal: true,
+      });
+    });
+
+    return emitter;
   }
 
   async initSession(sessionId: string, projectPath: string): Promise<void> {
@@ -684,6 +815,13 @@ export class ClaudeService implements OnModuleInit {
     if (!session) {
       this.logger.warn(`Attempted to stop non-existent session ${sessionId}`);
       return;
+    }
+
+    // Kill PTY process if running
+    if (session.ptyProcess) {
+      this.logger.log(`Stopping PTY for session ${sessionId}`);
+      session.ptyProcess.kill();
+      session.ptyProcess = undefined;
     }
 
     if (session.process && !session.process.killed) {

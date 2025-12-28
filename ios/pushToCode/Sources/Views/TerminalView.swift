@@ -18,8 +18,10 @@ struct TerminalView: View {
 
             Divider()
 
-            // Content Area: Messages or Empty State
-            if viewModel.session.messages.isEmpty {
+            // Content Area: Messages, Loading, or Empty State
+            if viewModel.isStartingSession && viewModel.session.messages.isEmpty {
+                startingSessionView
+            } else if viewModel.session.messages.isEmpty {
                 emptyStateView
             } else {
                 messagesListView
@@ -108,6 +110,28 @@ struct TerminalView: View {
         default:
             break
         }
+    }
+
+    // MARK: - Starting Session View
+
+    private var startingSessionView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            ProgressView()
+                .scaleEffect(1.5)
+
+            Text("Starting Claude...")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text("Connecting to interactive session")
+                .font(.subheadline)
+                .foregroundColor(.secondary.opacity(0.7))
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Empty State View

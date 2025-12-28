@@ -148,13 +148,18 @@ final class WebSocketService: NSObject, ObservableObject {
         send(message)
     }
 
-    func sendPtyInput(_ input: String) {
-        let message = PtyInputMessage(input: input)
+    func sendPtyInput(_ input: String, sessionId: String? = nil) {
+        let message = PtyInputMessage(input: input, sessionId: sessionId)
         send(message)
     }
 
     func sendLogin() {
         let message = LoginMessage()
+        send(message)
+    }
+
+    func startInteractiveSession(sessionId: String, projectPath: String) {
+        let message = StartInteractiveMessage(sessionId: sessionId, projectPath: projectPath)
         send(message)
     }
 

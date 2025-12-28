@@ -158,6 +158,9 @@ export class ClaudeGateway
         case 'pty_input':
           this.handlePtyInput(client, data);
           break;
+        case 'start_interactive':
+          await this.handleStartInteractive(client, data);
+          break;
         case 'ping':
           this.handlePing(client);
           break;
@@ -426,22 +429,87 @@ export class ClaudeGateway
     }
   }
 
+  private async handleStartInteractive(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string; projectPath: string },
+  ): Promise<void> {
+    const { sessionId, projectPath } = data;
+    this.logger.log(`Starting interactive session ${sessionId} for project: ${projectPath}`);
+
+    try {
+      client.sessionIds.add(sessionId);
+
+      this.sendMessage(client, {
+        type: 'status',
+        sessionId,
+        status: 'running',
+      });
+
+      const emitter = await this.claudeService.startInteractiveSession(sessionId, projectPath);
+
+      // Stream PTY output to client
+      emitter.on('pty_output', (output: string) => {
+        if (output) {
+          this.sendMessage(client, {
+            type: 'pty_output',
+            sessionId,
+            content: output,
+          });
+        }
+      });
+
+      // Handle auth required
+      emitter.on('output', (output: ClaudeOutput) => {
+        if (output.type === 'auth_required') {
+          this.sendMessage(client, {
+            type: 'auth_required',
+            sessionId,
+            authUrl: output.authUrl,
+            message: output.content || 'Authentication required',
+          });
+        } else if (output.type === 'exit') {
+          this.sendMessage(client, {
+            type: 'status',
+            sessionId,
+            status: 'idle',
+          });
+        }
+      });
+
+      // Notify client that interactive session is ready
+      this.sendMessage(client, {
+        type: 'interactive_started',
+        sessionId,
+        message: 'Interactive Claude session started',
+      });
+    } catch (error) {
+      this.sendError(client, sessionId, 'START_INTERACTIVE_FAILED', error.message);
+    }
+  }
+
   private handlePtyInput(
     client: AuthenticatedWebSocket,
-    data: { input: string },
+    data: { sessionId?: string; input: string },
   ): void {
-    const { input } = data;
+    const { sessionId, input } = data;
     this.logger.log(`PTY input received: ${input.substring(0, 50)}`);
 
     if (!input) {
       return;
     }
 
-    const success = this.claudeService.sendPtyInput(input);
+    // If sessionId provided, send to session PTY, otherwise to login PTY
+    let success: boolean;
+    if (sessionId) {
+      success = this.claudeService.sendSessionPtyInput(sessionId, input);
+    } else {
+      success = this.claudeService.sendPtyInput(input);
+    }
+
     if (!success) {
       this.sendError(
         client,
-        '',
+        sessionId || '',
         'PTY_INPUT_FAILED',
         'No active PTY session to send input to.',
       );
