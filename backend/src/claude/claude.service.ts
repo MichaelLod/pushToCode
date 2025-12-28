@@ -166,14 +166,13 @@ export class ClaudeService implements OnModuleInit {
 
       ptyProcess.onData((data: string) => {
         output += data;
-        // Strip ANSI escape codes for clean display
-        const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+        // Strip ANSI escape codes and control sequences for clean display
+        const cleanData = this.stripAnsiAndControl(data);
         if (cleanData) {
           this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+          // Emit PTY output to iOS app so user can see everything
+          emitter.emit('pty_output', cleanData);
         }
-
-        // Emit PTY output to iOS app so user can see everything
-        emitter.emit('pty_output', cleanData);
 
         // Handle onboarding prompts by pressing Enter to accept defaults
         const isOnboardingPrompt = (
@@ -404,14 +403,13 @@ export class ClaudeService implements OnModuleInit {
     let lastEnterPress = 0;
 
     ptyProcess.onData((data: string) => {
-      // Strip ANSI escape codes for clean display
-      const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+      // Strip ANSI escape codes and terminal control sequences for clean display
+      const cleanData = this.stripAnsiAndControl(data);
       if (cleanData) {
         this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 200)}`);
+        // Emit PTY output to client
+        emitter.emit('pty_output', cleanData);
       }
-
-      // Emit PTY output to client
-      emitter.emit('pty_output', cleanData);
 
       // Auto-handle onboarding prompts
       const isOnboardingPrompt = (
@@ -765,9 +763,33 @@ export class ClaudeService implements OnModuleInit {
     return 'text';
   }
 
+  // Strip ANSI escape codes and terminal control sequences
+  private stripAnsiAndControl(data: string): string {
+    return data
+      // Standard ANSI escape sequences
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      // ANSI escape sequences with ? (cursor control, etc)
+      .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '')
+      // Other escape sequences
+      .replace(/\x1b\][^\x07]*\x07/g, '')  // OSC sequences
+      .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '')  // DCS, SOS, PM, APC
+      .replace(/\x1b[\(\)][AB012]/g, '')  // Character set selection
+      .replace(/\x1b[=>]/g, '')  // Keypad mode
+      // Box drawing and special characters - convert to spaces or remove
+      .replace(/[─│┌┐└┘├┤┬┴┼╭╮╯╰]/g, '')
+      .replace(/[━┃┏┓┗┛┣┫┳┻╋]/g, '')
+      .replace(/[═║╔╗╚╝╠╣╦╩╬]/g, '')
+      // Remove other control characters
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      // Clean up multiple spaces/newlines
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .trim();
+  }
+
   private extractAuthUrl(content: string): string | null {
     // First strip ANSI escape codes from the content
-    const cleanContent = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+    const cleanContent = this.stripAnsiAndControl(content);
 
     // Match various OAuth/login URL patterns
     const urlPatterns = [
