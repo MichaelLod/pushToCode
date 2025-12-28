@@ -333,14 +333,21 @@ export class ClaudeService implements OnModuleInit {
   // Send input to a session's interactive PTY
   sendSessionPtyInput(sessionId: string, input: string): boolean {
     const session = this.sessions.get(sessionId);
-    if (!session?.ptyProcess) {
+    if (!session) {
+      this.logger.error(`Session ${sessionId} not found`);
+      return false;
+    }
+    if (!session.ptyProcess) {
       this.logger.error(`No active PTY for session ${sessionId}`);
       return false;
     }
 
     try {
-      this.logger.log(`Sending PTY input to session ${sessionId}: ${input.substring(0, 50)}`);
+      // Log the raw input for debugging
+      const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+      this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
       session.ptyProcess.write(input);
+      this.logger.log(`PTY input sent successfully`);
       return true;
     } catch (error) {
       this.logger.error(`Failed to send PTY input: ${error.message}`);
@@ -411,7 +418,7 @@ export class ClaudeService implements OnModuleInit {
         emitter.emit('pty_output', cleanData);
       }
 
-      // Auto-handle onboarding prompts
+      // Auto-handle onboarding and permission prompts
       const isOnboardingPrompt = (
         cleanData.includes('Dark mode') ||
         cleanData.includes('Light mode') ||
@@ -422,13 +429,26 @@ export class ClaudeService implements OnModuleInit {
         /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)
       );
 
+      // Auto-accept bypass permissions prompt
+      const isBypassPrompt = (
+        cleanData.includes('Bypass Permissions mode') ||
+        cleanData.includes('Yes, I accept') ||
+        cleanData.includes('accept all responsibility')
+      );
+
       const now = Date.now();
-      if (isOnboardingPrompt && (now - lastEnterPress > 1000)) {
-        this.logger.log(`Auto-accepting onboarding prompt: ${cleanData.substring(0, 50)}`);
+      if ((isOnboardingPrompt || isBypassPrompt) && (now - lastEnterPress > 1000)) {
+        this.logger.log(`Auto-accepting prompt: ${cleanData.substring(0, 100)}`);
         lastEnterPress = now;
         setTimeout(() => {
           if (session.ptyProcess === ptyProcess) {
-            ptyProcess.write('\r');
+            // For bypass prompt, select option 2 (Yes, I accept)
+            if (isBypassPrompt && cleanData.includes('1. No, exit')) {
+              this.logger.log('Selecting "Yes, I accept" for bypass permissions');
+              ptyProcess.write('2\r');
+            } else {
+              ptyProcess.write('\r');
+            }
           }
         }, 300);
       }
