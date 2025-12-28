@@ -65,9 +65,38 @@ else
   echo "No custom settings available."
 fi
 
+# Ensure .claude.json has hasCompletedOnboarding=true to skip onboarding prompts
+# See: https://github.com/anthropics/claude-code/issues/4714
+CLAUDE_JSON="$CLAUDE_DIR/.claude.json"
+if [ -f "$CLAUDE_JSON" ]; then
+  # File exists - check if hasCompletedOnboarding is set
+  if grep -q '"hasCompletedOnboarding"' "$CLAUDE_JSON"; then
+    echo "Onboarding flag already present in .claude.json"
+  else
+    # Add hasCompletedOnboarding to existing file
+    echo "Adding hasCompletedOnboarding to existing .claude.json"
+    # Use jq if available, otherwise sed
+    if command -v jq >/dev/null 2>&1; then
+      jq '. + {"hasCompletedOnboarding": true}' "$CLAUDE_JSON" > "$CLAUDE_JSON.tmp" && mv "$CLAUDE_JSON.tmp" "$CLAUDE_JSON"
+    else
+      # Simple sed approach - add before closing brace
+      sed -i 's/}$/,"hasCompletedOnboarding":true}/' "$CLAUDE_JSON"
+    fi
+  fi
+else
+  # Create new file with onboarding flag
+  echo "Creating .claude.json with hasCompletedOnboarding=true"
+  echo '{"hasCompletedOnboarding":true}' > "$CLAUDE_JSON"
+fi
+chown claude:claude "$CLAUDE_JSON"
+echo "Contents of .claude.json:"
+cat "$CLAUDE_JSON" | head -c 500
+
 # Check authentication config
 if [ -n "$ANTHROPIC_API_KEY" ]; then
   echo "API key configured."
+elif [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+  echo "OAuth token configured via environment variable."
 elif [ -f "$CLAUDE_DIR/.credentials.json" ]; then
   echo "OAuth credentials found (persisted from previous login)."
 else
