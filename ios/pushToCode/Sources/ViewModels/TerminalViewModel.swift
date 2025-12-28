@@ -273,12 +273,17 @@ final class TerminalViewModel: ObservableObject {
     func sendPtyInput(_ input: String) {
         guard !input.isEmpty else { return }
 
+        // Trim whitespace - leading spaces break slash command recognition
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInput.isEmpty else { return }
+
         // Add user message to chat
-        let userMessage = Message(role: .user, content: input)
+        let userMessage = Message(role: .user, content: trimmedInput)
         session.addMessage(userMessage)
 
-        // Send input to PTY with newline (Unix style), include sessionId for session PTY
-        webSocketService.sendPtyInput(input + "\n", sessionId: session.id)
+        // Send input to PTY with carriage return (terminal Enter key)
+        // Claude CLI expects \r for interactive input
+        webSocketService.sendPtyInput(trimmedInput + "\r", sessionId: session.id)
     }
 
     func triggerLogin() {
