@@ -159,6 +159,7 @@ export class ClaudeService implements OnModuleInit {
       this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
 
       let readyForCode = false;
+      let authSuccessEmitted = false;
 
       ptyProcess.onData((data: string) => {
         output += data;
@@ -166,6 +167,15 @@ export class ClaudeService implements OnModuleInit {
         const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
         if (cleanData) {
           this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+        }
+
+        // Handle onboarding prompts by pressing Enter to accept defaults
+        if (cleanData.includes('Dark mode') ||
+            cleanData.includes('Light mode') ||
+            cleanData.includes('Choose the text style') ||
+            cleanData.includes('Let\'s get started')) {
+          this.logger.log('Detected onboarding prompt, pressing Enter to continue');
+          setTimeout(() => ptyProcess.write('\n'), 500);
         }
 
         // Check if CLI is ready to receive the auth code
@@ -188,22 +198,21 @@ export class ClaudeService implements OnModuleInit {
         }
 
         // Check for success message after code is entered
-        if (cleanData.includes('Successfully authenticated') ||
+        if (!authSuccessEmitted && (
+            cleanData.includes('Successfully authenticated') ||
             cleanData.includes('Authentication successful') ||
-            cleanData.includes('logged in') ||
-            cleanData.includes('Logged in as') ||
-            cleanData.includes('Welcome back')) {
+            cleanData.includes('Logged in as'))) {
           this.logger.log('Authentication successful!');
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
+          authSuccessEmitted = true;
           emitter.emit('auth_success');
         }
 
         // Check for error messages
         if (cleanData.includes('OAuth error') ||
             cleanData.includes('Invalid code') ||
-            cleanData.includes('expired') ||
-            cleanData.includes('try again')) {
+            cleanData.includes('expired')) {
           this.logger.warn(`Auth error detected: ${cleanData.substring(0, 100)}`);
           emitter.emit('auth_failed', cleanData);
         }
