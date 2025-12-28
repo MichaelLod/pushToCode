@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TerminalView: View {
     @ObservedObject var viewModel: TerminalViewModel
@@ -162,14 +163,20 @@ struct TerminalView: View {
     private var terminalOutputView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text(viewModel.ptyOutput)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .id("terminal-output")
+                Group {
+                    if viewModel.parsedOutput.characters.isEmpty && viewModel.session.projectPath != nil {
+                        // Show placeholder with blinking cursor when empty but session active
+                        TerminalPlaceholderView()
+                    } else {
+                        Text(viewModel.parsedOutput)
+                            .font(.system(size: 13, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(12)
+                .id("terminal-output")
             }
-            .background(Color.black)
+            .background(TerminalTheme.darkBackground)
             .onChange(of: viewModel.ptyOutput) { _ in
                 withAnimation(.easeOut(duration: 0.1)) {
                     proxy.scrollTo("terminal-output", anchor: .bottom)
@@ -217,17 +224,22 @@ struct TerminalView: View {
     // MARK: - Input Area
 
     private var inputArea: some View {
-        VStack(spacing: 8) {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+
+        return VStack(spacing: 8) {
             // Terminal control buttons (arrow keys, escape, enter)
             if viewModel.session.projectPath != nil {
                 HStack(spacing: 12) {
                     // Escape key
                     TerminalKeyButton(label: "ESC", systemImage: nil) {
+                        impactFeedback.impactOccurred()
                         viewModel.sendRawInput("\u{1b}")  // Escape character
                     }
+                    .accessibilityLabel("Escape key")
 
                     // Login button - triggers proper claude login flow
                     Button {
+                        impactFeedback.impactOccurred()
                         viewModel.triggerLogin()
                     } label: {
                         HStack(spacing: 4) {
@@ -241,31 +253,45 @@ struct TerminalView: View {
                         .background(Color.orange)
                         .cornerRadius(6)
                     }
+                    .accessibilityLabel("Login to Claude")
 
                     Spacer()
 
                     // Arrow keys
                     HStack(spacing: 8) {
                         TerminalKeyButton(label: nil, systemImage: "arrow.up") {
+                            impactFeedback.impactOccurred()
                             viewModel.sendRawInput("\u{1b}[A")  // Up arrow
                         }
+                        .accessibilityLabel("Up arrow")
+
                         TerminalKeyButton(label: nil, systemImage: "arrow.down") {
+                            impactFeedback.impactOccurred()
                             viewModel.sendRawInput("\u{1b}[B")  // Down arrow
                         }
+                        .accessibilityLabel("Down arrow")
+
                         TerminalKeyButton(label: nil, systemImage: "arrow.left") {
+                            impactFeedback.impactOccurred()
                             viewModel.sendRawInput("\u{1b}[D")  // Left arrow
                         }
+                        .accessibilityLabel("Left arrow")
+
                         TerminalKeyButton(label: nil, systemImage: "arrow.right") {
+                            impactFeedback.impactOccurred()
                             viewModel.sendRawInput("\u{1b}[C")  // Right arrow
                         }
+                        .accessibilityLabel("Right arrow")
                     }
 
                     Spacer()
 
                     // Enter key
                     TerminalKeyButton(label: "↵", systemImage: nil) {
+                        impactFeedback.impactOccurred()
                         viewModel.sendRawInput("\r")  // Enter/Return
                     }
+                    .accessibilityLabel("Return key")
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -278,17 +304,18 @@ struct TerminalView: View {
                     .lineLimit(1...5)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
+                    .background(TerminalTheme.inputBarBackground)
                     .cornerRadius(20)
 
                 // Mic button for dictation
                 Button {
+                    impactFeedback.impactOccurred()
                     showVoiceRecorder = true
                 } label: {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 18))
                         .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 40, height: 40)
                         .background(Color.blue)
                         .clipShape(Circle())
                 }
@@ -296,12 +323,13 @@ struct TerminalView: View {
 
                 // Send button
                 Button {
+                    impactFeedback.impactOccurred()
                     viewModel.sendPrompt(viewModel.inputText)
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 40, height: 40)
                         .background(canSend ? Color.green : Color.gray.opacity(0.5))
                         .clipShape(Circle())
                 }
@@ -310,6 +338,9 @@ struct TerminalView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
+        }
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 0)
         }
     }
 
@@ -413,10 +444,44 @@ struct TerminalKeyButton: View {
                 }
             }
             .foregroundColor(.primary)
-            .frame(width: 40, height: 32)
+            .frame(minWidth: 44, minHeight: 44)
             .background(Color(.tertiarySystemBackground))
             .cornerRadius(6)
         }
+    }
+}
+
+// MARK: - Terminal Placeholder View
+
+struct TerminalPlaceholderView: View {
+    @State private var isBlinking = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("Ready for input")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundColor(TerminalTheme.textColor.opacity(0.5))
+
+            Text(" ")
+
+            // Blinking cursor
+            Rectangle()
+                .fill(TerminalTheme.cursorColor)
+                .frame(width: 8, height: 16)
+                .opacity(isBlinking ? 1.0 : 0.0)
+                .animation(
+                    .easeInOut(duration: 0.5)
+                    .repeatForever(autoreverses: true),
+                    value: isBlinking
+                )
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            isBlinking = true
+        }
+        .accessibilityLabel("Terminal ready for input")
     }
 }
 

@@ -14,10 +14,12 @@ final class TerminalViewModel: ObservableObject {
     @Published var authCode: String = ""
     @Published var isSubmittingAuthCode = false
     @Published var ptyOutput: String = ""
+    @Published var parsedOutput: AttributedString = AttributedString()
     @Published var isStartingSession = false
 
     private let webSocketService = WebSocketService.shared
     private let settingsManager = SettingsManager.shared
+    private let parser = ANSIParser()
     private var cancellables = Set<AnyCancellable>()
 
     init(session: Session) {
@@ -72,6 +74,7 @@ final class TerminalViewModel: ObservableObject {
         webSocketService.disconnect()
         session.status = .disconnected
         ptyOutput = ""
+        parsedOutput = AttributedString()
     }
 
     func initializeSession() {
@@ -184,6 +187,7 @@ final class TerminalViewModel: ObservableObject {
         authCode = ""
         authUrl = nil
         ptyOutput = ""
+        parsedOutput = AttributedString()
 
         let successMessage = Message(
             role: .assistant,
@@ -240,6 +244,9 @@ final class TerminalViewModel: ObservableObject {
 
         // Accumulate PTY output for terminal display
         ptyOutput += content
+
+        // Parse ANSI codes and update attributed output
+        parsedOutput = parser.parse(ptyOutput)
     }
 
     /// Send raw input directly to PTY (used by SwiftTerm)
