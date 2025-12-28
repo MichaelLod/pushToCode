@@ -155,6 +155,9 @@ export class ClaudeGateway
         case 'submit_auth_code':
           await this.handleSubmitAuthCode(client, data);
           break;
+        case 'pty_input':
+          this.handlePtyInput(client, data);
+          break;
         case 'ping':
           this.handlePing(client);
           break;
@@ -234,6 +237,17 @@ export class ClaudeGateway
             this.logger.log('No auth URL in output, triggering login...');
             const { url: authUrl, emitter: loginEmitter } = await this.claudeService.triggerLogin();
 
+            // Listen for PTY output and stream to iOS
+            loginEmitter.on('pty_output', (output: string) => {
+              if (output) {
+                this.sendMessage(client, {
+                  type: 'pty_output',
+                  sessionId,
+                  content: output,
+                });
+              }
+            });
+
             // Listen for auth success/failure
             loginEmitter.on('auth_success', () => {
               this.logger.log('Auth success received during execute, notifying client');
@@ -249,7 +263,14 @@ export class ClaudeGateway
               this.sendError(client, sessionId, 'AUTH_FAILED', reason);
             });
 
-            // Only send auth_required if we actually got a URL
+            // Tell iOS we're in interactive login mode - they can send pty_input
+            this.sendMessage(client, {
+              type: 'login_interactive',
+              sessionId,
+              message: 'Claude login started. Type /login to authenticate.',
+            });
+
+            // If we got a URL, also send it
             if (authUrl) {
               this.sendMessage(client, {
                 type: 'auth_required',
@@ -257,14 +278,6 @@ export class ClaudeGateway
                 authUrl: authUrl,
                 message: 'Please authenticate with Claude to continue.',
               });
-            } else {
-              this.logger.warn('Login did not return auth URL - onboarding may be stuck');
-              this.sendError(
-                client,
-                sessionId,
-                'AUTH_SETUP_FAILED',
-                'Could not get authentication URL. The CLI may need manual setup.',
-              );
             }
           } else {
             this.sendMessage(client, {
@@ -410,6 +423,28 @@ export class ClaudeGateway
       }
     } catch (error) {
       this.sendError(client, '', 'CODE_SUBMIT_FAILED', error.message);
+    }
+  }
+
+  private handlePtyInput(
+    client: AuthenticatedWebSocket,
+    data: { input: string },
+  ): void {
+    const { input } = data;
+    this.logger.log(`PTY input received: ${input.substring(0, 50)}`);
+
+    if (!input) {
+      return;
+    }
+
+    const success = this.claudeService.sendPtyInput(input);
+    if (!success) {
+      this.sendError(
+        client,
+        '',
+        'PTY_INPUT_FAILED',
+        'No active PTY session to send input to.',
+      );
     }
   }
 

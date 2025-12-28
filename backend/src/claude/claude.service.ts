@@ -162,38 +162,27 @@ export class ClaudeService implements OnModuleInit {
       let authSuccessEmitted = false;
       let killedByTimeout = false;
       let lastEnterPress = 0;
-      let sentLoginCommand = false;
-      let inInteractiveMode = false;
 
       ptyProcess.onData((data: string) => {
         output += data;
-        // Strip ANSI escape codes for logging
+        // Strip ANSI escape codes for clean display
         const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
         if (cleanData) {
           this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
         }
 
-        // Detect when we're in the interactive Claude Code session
-        if (cleanData.includes('Try "write a test') ||
-            cleanData.includes('Tips for getting started') ||
-            cleanData.includes('Claude Code v')) {
-          inInteractiveMode = true;
-        }
+        // Emit PTY output to iOS app so user can see everything
+        emitter.emit('pty_output', cleanData);
 
         // Handle onboarding prompts by pressing Enter to accept defaults
-        // But avoid interfering with auth code entry
         const isOnboardingPrompt = (
           cleanData.includes('Dark mode') ||
           cleanData.includes('Light mode') ||
           cleanData.includes('Choose the text style') ||
           cleanData.includes('Let\'s get started') ||
-          cleanData.includes('Welcome to Claude') ||
-          cleanData.includes('Press Enter') ||
           cleanData.includes('Ready to code here') ||
           cleanData.includes('Yes, continue') ||
-          cleanData.includes('telemetry') ||
-          cleanData.includes('analytics') ||
-          /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)  // Menu selection
+          /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData)
         );
         const isAuthCodePrompt = (
           cleanData.includes('Paste your') ||
@@ -202,28 +191,16 @@ export class ClaudeService implements OnModuleInit {
           cleanData.includes('console.anthropic.com')
         );
 
-        // Debounce Enter presses (at least 1 second between presses)
+        // Auto-press Enter only for onboarding menus, not for interactive prompts
         const now = Date.now();
         if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
           this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
           lastEnterPress = now;
           setTimeout(() => {
             if (this.loginPtyProcess === ptyProcess) {
-              this.logger.log('Sending Enter key (\\r) to PTY');
               ptyProcess.write('\r');
             }
           }, 500);
-        }
-
-        // Once in interactive mode, send /login command to trigger OAuth
-        if (inInteractiveMode && !sentLoginCommand && !readyForCode) {
-          sentLoginCommand = true;
-          this.logger.log('Interactive mode detected, sending /login command');
-          setTimeout(() => {
-            if (this.loginPtyProcess === ptyProcess) {
-              ptyProcess.write('/login\r');
-            }
-          }, 1000);
         }
 
         // Check if CLI is ready to receive the auth code
@@ -334,6 +311,23 @@ export class ClaudeService implements OnModuleInit {
 
   getLoginEmitter(): EventEmitter | null {
     return this.loginEmitter;
+  }
+
+  // Send any input to the login PTY (for user interaction)
+  sendPtyInput(input: string): boolean {
+    if (!this.loginPtyProcess) {
+      this.logger.error('No active login PTY process');
+      return false;
+    }
+
+    try {
+      this.logger.log(`Sending PTY input: ${input.substring(0, 50)}`);
+      this.loginPtyProcess.write(input);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send PTY input: ${error.message}`);
+      return false;
+    }
   }
 
   async initSession(sessionId: string, projectPath: string): Promise<void> {
