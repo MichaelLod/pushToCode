@@ -783,17 +783,17 @@ export class ClaudeService implements OnModuleInit {
     return 'text';
   }
 
-  // Strip only problematic control sequences, keep visual formatting
+  // Strip ALL ANSI escape sequences - iOS can't render them
   private stripAnsiAndControl(data: string): string {
     return data
-      // Only strip cursor/screen control sequences that break display
-      .replace(/\x1b\[\?[0-9;]*[hlsru]/gi, '')  // Cursor show/hide, save/restore
-      .replace(/\x1b\[[0-9]*[ABCDJKST]/g, '')   // Cursor movement, clear screen/line
-      .replace(/\x1b\[[0-9;]*H/g, '')           // Cursor position
-      .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC sequences (window title, etc)
-      // Keep colors and styling: \x1b[...m sequences
-      // Keep box-drawing characters
-      // Remove other control characters except newline/tab
+      // Strip ALL ANSI escape sequences (colors, cursor, etc.)
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')    // CSI sequences (colors, cursor, etc.)
+      .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '')  // Private CSI sequences
+      .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC sequences (window title, etc.)
+      .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '') // DCS, SOS, PM, APC sequences
+      .replace(/\x1b[\(\)][AB012]/g, '')        // Character set selection
+      .replace(/\x1b[=>]/g, '')                 // Keypad mode
+      // Remove other control characters except newline/tab/carriage return
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   }
 
