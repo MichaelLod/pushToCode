@@ -16,12 +16,21 @@ export declare class ClaudeService implements OnModuleInit {
     private sessions;
     private pendingAuthUrl;
     private isAuthenticated;
+    private loginPtyProcess;
+    private loginEmitter;
     constructor(configService: ConfigService);
     onModuleInit(): Promise<void>;
+    private verifyCliInstalled;
     private checkAuthStatus;
     getPendingAuthUrl(): string | null;
     isClaudeAuthenticated(): boolean;
     clearPendingAuth(): void;
+    triggerLogin(): Promise<{
+        url: string | null;
+        emitter: EventEmitter;
+    }>;
+    submitAuthCode(code: string): Promise<boolean>;
+    getLoginEmitter(): EventEmitter | null;
     initSession(sessionId: string, projectPath: string): Promise<void>;
     execute(sessionId: string, prompt: string, projectPath: string): Promise<EventEmitter>;
     private parseClaudeOutput;

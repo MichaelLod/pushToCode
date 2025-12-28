@@ -27,6 +27,8 @@ export class ClaudeService implements OnModuleInit {
   private sessions: Map<string, SessionData> = new Map();
   private pendingAuthUrl: string | null = null;
   private isAuthenticated = false;
+  private loginPtyProcess: pty.IPty | null = null;
+  private loginEmitter: EventEmitter | null = null;
 
   constructor(private configService: ConfigService) {}
 
@@ -123,8 +125,18 @@ export class ClaudeService implements OnModuleInit {
     this.isAuthenticated = true;
   }
 
-  async triggerLogin(): Promise<string | null> {
+  async triggerLogin(): Promise<{ url: string | null; emitter: EventEmitter }> {
     this.logger.log('Triggering Claude login flow via PTY...');
+
+    // Kill any existing login process
+    if (this.loginPtyProcess) {
+      this.logger.log('Killing existing login PTY process');
+      this.loginPtyProcess.kill();
+      this.loginPtyProcess = null;
+    }
+
+    const emitter = new EventEmitter();
+    this.loginEmitter = emitter;
 
     return new Promise((resolve) => {
       let output = '';
@@ -143,6 +155,7 @@ export class ClaudeService implements OnModuleInit {
         },
       });
 
+      this.loginPtyProcess = ptyProcess;
       this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
 
       ptyProcess.onData((data: string) => {
@@ -158,31 +171,69 @@ export class ClaudeService implements OnModuleInit {
           foundUrl = url;
           this.pendingAuthUrl = url;
           this.logger.log(`Found auth URL: ${url}`);
-          resolve(url);
+          resolve({ url, emitter });
+        }
+
+        // Check for success message after code is entered
+        if (cleanData.includes('Successfully authenticated') ||
+            cleanData.includes('Authentication successful') ||
+            cleanData.includes('logged in')) {
+          this.logger.log('Authentication successful!');
+          this.isAuthenticated = true;
+          this.pendingAuthUrl = null;
+          emitter.emit('auth_success');
         }
       });
 
       ptyProcess.onExit(({ exitCode }) => {
-        this.logger.log(`PTY process exited with code ${exitCode}`);
+        this.logger.log(`PTY login process exited with code ${exitCode}`);
+        this.loginPtyProcess = null;
         if (exitCode === 0) {
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
+          emitter.emit('auth_success');
+        } else {
+          emitter.emit('auth_failed', `Process exited with code ${exitCode}`);
         }
         if (!foundUrl) {
           this.logger.warn(`No auth URL found. Full output: ${output.substring(0, 500)}`);
-          resolve(null);
+          resolve({ url: null, emitter });
         }
       });
 
-      // Timeout after 10 seconds
+      // Timeout after 10 seconds for URL (but keep process alive for code entry)
       setTimeout(() => {
         if (!foundUrl) {
           this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
           ptyProcess.kill();
-          resolve(null);
+          this.loginPtyProcess = null;
+          resolve({ url: null, emitter });
         }
       }, 10000);
     });
+  }
+
+  async submitAuthCode(code: string): Promise<boolean> {
+    this.logger.log(`Submitting auth code: ${code.substring(0, 20)}...`);
+
+    if (!this.loginPtyProcess) {
+      this.logger.error('No active login PTY process to submit code to');
+      return false;
+    }
+
+    try {
+      // Write the code to the PTY followed by enter
+      this.loginPtyProcess.write(code + '\r');
+      this.logger.log('Auth code submitted to PTY');
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to submit auth code: ${error.message}`);
+      return false;
+    }
+  }
+
+  getLoginEmitter(): EventEmitter | null {
+    return this.loginEmitter;
   }
 
   async initSession(sessionId: string, projectPath: string): Promise<void> {

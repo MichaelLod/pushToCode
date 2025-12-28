@@ -152,6 +152,9 @@ export class ClaudeGateway
         case 'login':
           await this.handleLogin(client);
           break;
+        case 'submit_auth_code':
+          await this.handleSubmitAuthCode(client, data);
+          break;
         case 'ping':
           this.handlePing(client);
           break;
@@ -229,7 +232,18 @@ export class ClaudeGateway
           // If no auth URL yet, trigger login to get one
           if (!output.authUrl) {
             this.logger.log('No auth URL in output, triggering login...');
-            const authUrl = await this.claudeService.triggerLogin();
+            const { url: authUrl, emitter: loginEmitter } = await this.claudeService.triggerLogin();
+
+            // Listen for auth success/failure
+            loginEmitter.on('auth_success', () => {
+              this.logger.log('Auth success received during execute, notifying client');
+              this.sendMessage(client, {
+                type: 'auth_success',
+                sessionId,
+                message: 'Successfully authenticated with Claude!',
+              });
+            });
+
             this.sendMessage(client, {
               type: 'auth_required',
               sessionId,
@@ -293,9 +307,24 @@ export class ClaudeGateway
     this.logger.log('Handling login request');
 
     try {
-      const authUrl = await this.claudeService.triggerLogin();
+      const { url: authUrl, emitter } = await this.claudeService.triggerLogin();
 
       if (authUrl) {
+        // Listen for auth success/failure
+        emitter.on('auth_success', () => {
+          this.logger.log('Auth success received, notifying client');
+          this.sendMessage(client, {
+            type: 'auth_success',
+            sessionId: '',
+            message: 'Successfully authenticated with Claude!',
+          });
+        });
+
+        emitter.on('auth_failed', (reason: string) => {
+          this.logger.log(`Auth failed: ${reason}`);
+          this.sendError(client, '', 'AUTH_FAILED', reason);
+        });
+
         this.sendMessage(client, {
           type: 'auth_required',
           sessionId: '',
@@ -312,6 +341,40 @@ export class ClaudeGateway
       }
     } catch (error) {
       this.sendError(client, '', 'LOGIN_FAILED', error.message);
+    }
+  }
+
+  private async handleSubmitAuthCode(
+    client: AuthenticatedWebSocket,
+    data: { code: string },
+  ): Promise<void> {
+    const { code } = data;
+    this.logger.log('Handling auth code submission');
+
+    if (!code) {
+      this.sendError(client, '', 'INVALID_CODE', 'No auth code provided');
+      return;
+    }
+
+    try {
+      const success = await this.claudeService.submitAuthCode(code);
+
+      if (success) {
+        this.sendMessage(client, {
+          type: 'auth_code_submitted',
+          sessionId: '',
+          message: 'Auth code submitted, waiting for verification...',
+        });
+      } else {
+        this.sendError(
+          client,
+          '',
+          'CODE_SUBMIT_FAILED',
+          'Failed to submit auth code. No active login process.',
+        );
+      }
+    } catch (error) {
+      this.sendError(client, '', 'CODE_SUBMIT_FAILED', error.message);
     }
   }
 

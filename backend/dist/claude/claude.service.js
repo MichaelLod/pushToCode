@@ -1,10 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -15,17 +48,31 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const child_process_1 = require("child_process");
 const events_1 = require("events");
+const pty = __importStar(require("node-pty"));
 let ClaudeService = ClaudeService_1 = class ClaudeService {
     configService;
     logger = new common_1.Logger(ClaudeService_1.name);
     sessions = new Map();
     pendingAuthUrl = null;
     isAuthenticated = false;
+    loginPtyProcess = null;
+    loginEmitter = null;
     constructor(configService) {
         this.configService = configService;
     }
     async onModuleInit() {
+        await this.verifyCliInstalled();
         await this.checkAuthStatus();
+    }
+    async verifyCliInstalled() {
+        this.logger.log('Verifying Claude CLI installation...');
+        try {
+            const version = (0, child_process_1.execSync)('claude --version', { timeout: 10000 }).toString().trim();
+            this.logger.log(`Claude CLI version: ${version}`);
+        }
+        catch (error) {
+            this.logger.error(`Claude CLI not working: ${error.message}`);
+        }
     }
     async checkAuthStatus() {
         this.logger.log('Checking Claude authentication status...');
@@ -34,6 +81,8 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                 '-p', 'echo test',
                 '--output-format', 'json',
                 '--dangerously-skip-permissions',
+                '--debug', 'api,auth',
+                '--verbose',
             ], {
                 cwd: '/tmp',
                 env: {
@@ -43,9 +92,18 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                 },
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
+            claudeProcess.stdin?.end();
             let stderrOutput = '';
+            let stdoutOutput = '';
+            claudeProcess.stdout?.on('data', (data) => {
+                const chunk = data.toString();
+                stdoutOutput += chunk;
+                this.logger.log(`Auth check stdout: ${chunk.substring(0, 500)}`);
+            });
             claudeProcess.stderr?.on('data', (data) => {
-                stderrOutput += data.toString();
+                const chunk = data.toString();
+                stderrOutput += chunk;
+                this.logger.log(`Auth check stderr: ${chunk.substring(0, 500)}`);
             });
             claudeProcess.on('close', (code) => {
                 const authUrl = this.extractAuthUrl(stderrOutput);
@@ -80,6 +138,98 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
     clearPendingAuth() {
         this.pendingAuthUrl = null;
         this.isAuthenticated = true;
+    }
+    async triggerLogin() {
+        this.logger.log('Triggering Claude login flow via PTY...');
+        if (this.loginPtyProcess) {
+            this.logger.log('Killing existing login PTY process');
+            this.loginPtyProcess.kill();
+            this.loginPtyProcess = null;
+        }
+        const emitter = new events_1.EventEmitter();
+        this.loginEmitter = emitter;
+        return new Promise((resolve) => {
+            let output = '';
+            let foundUrl = null;
+            const ptyProcess = pty.spawn('claude', ['setup-token'], {
+                name: 'xterm-256color',
+                cols: 120,
+                rows: 30,
+                cwd: '/tmp',
+                env: {
+                    ...process.env,
+                    FORCE_COLOR: '1',
+                    TERM: 'xterm-256color',
+                },
+            });
+            this.loginPtyProcess = ptyProcess;
+            this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
+            ptyProcess.onData((data) => {
+                output += data;
+                const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+                if (cleanData) {
+                    this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+                }
+                const url = this.extractAuthUrl(data);
+                if (url && !foundUrl) {
+                    foundUrl = url;
+                    this.pendingAuthUrl = url;
+                    this.logger.log(`Found auth URL: ${url}`);
+                    resolve({ url, emitter });
+                }
+                if (cleanData.includes('Successfully authenticated') ||
+                    cleanData.includes('Authentication successful') ||
+                    cleanData.includes('logged in')) {
+                    this.logger.log('Authentication successful!');
+                    this.isAuthenticated = true;
+                    this.pendingAuthUrl = null;
+                    emitter.emit('auth_success');
+                }
+            });
+            ptyProcess.onExit(({ exitCode }) => {
+                this.logger.log(`PTY login process exited with code ${exitCode}`);
+                this.loginPtyProcess = null;
+                if (exitCode === 0) {
+                    this.isAuthenticated = true;
+                    this.pendingAuthUrl = null;
+                    emitter.emit('auth_success');
+                }
+                else {
+                    emitter.emit('auth_failed', `Process exited with code ${exitCode}`);
+                }
+                if (!foundUrl) {
+                    this.logger.warn(`No auth URL found. Full output: ${output.substring(0, 500)}`);
+                    resolve({ url: null, emitter });
+                }
+            });
+            setTimeout(() => {
+                if (!foundUrl) {
+                    this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
+                    ptyProcess.kill();
+                    this.loginPtyProcess = null;
+                    resolve({ url: null, emitter });
+                }
+            }, 10000);
+        });
+    }
+    async submitAuthCode(code) {
+        this.logger.log(`Submitting auth code: ${code.substring(0, 20)}...`);
+        if (!this.loginPtyProcess) {
+            this.logger.error('No active login PTY process to submit code to');
+            return false;
+        }
+        try {
+            this.loginPtyProcess.write(code + '\r');
+            this.logger.log('Auth code submitted to PTY');
+            return true;
+        }
+        catch (error) {
+            this.logger.error(`Failed to submit auth code: ${error.message}`);
+            return false;
+        }
+    }
+    getLoginEmitter() {
+        return this.loginEmitter;
     }
     async initSession(sessionId, projectPath) {
         if (this.sessions.has(sessionId)) {
@@ -120,6 +270,8 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             '-p', prompt,
             '--output-format', 'stream-json',
             '--dangerously-skip-permissions',
+            '--debug', 'api,auth',
+            '--verbose',
         ];
         if (session.claudeSessionId) {
             args.push('--resume', session.claudeSessionId);
@@ -136,6 +288,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             stdio: ['pipe', 'pipe', 'pipe'],
         });
         this.logger.log(`Claude process spawned with PID: ${claudeProcess.pid}`);
+        claudeProcess.stdin?.end();
         session.process = claudeProcess;
         const startupTimeout = setTimeout(() => {
             this.logger.warn(`Claude process ${claudeProcess.pid} produced no output after 30s - may be hanging`);
@@ -261,9 +414,17 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             }
         }
         if (parsed.type === 'result') {
+            const result = parsed.result || '';
+            if (result.includes('Please run /login') || result.includes('Invalid API key')) {
+                return {
+                    type: 'auth_required',
+                    content: result,
+                    authUrl: this.pendingAuthUrl || undefined,
+                };
+            }
             return {
                 type: 'output',
-                content: parsed.result || '',
+                content: result,
                 outputType: 'text',
                 isFinal: true,
             };
@@ -320,7 +481,12 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                     url = match[1].replace(/[.,;:!?)"'\]]+$/, '');
                 }
                 if (url.startsWith('https://')) {
-                    return url;
+                    try {
+                        return decodeURIComponent(url);
+                    }
+                    catch {
+                        return url;
+                    }
                 }
             }
         }
