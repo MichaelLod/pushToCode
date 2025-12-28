@@ -177,11 +177,21 @@ export class ClaudeService implements OnModuleInit {
         // Check for success message after code is entered
         if (cleanData.includes('Successfully authenticated') ||
             cleanData.includes('Authentication successful') ||
-            cleanData.includes('logged in')) {
+            cleanData.includes('logged in') ||
+            cleanData.includes('success') ||
+            cleanData.includes('Logged in as')) {
           this.logger.log('Authentication successful!');
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
           emitter.emit('auth_success');
+        }
+
+        // Check for error messages
+        if (cleanData.includes('OAuth error') ||
+            cleanData.includes('Invalid code') ||
+            cleanData.includes('expired')) {
+          this.logger.warn(`Auth error detected: ${cleanData.substring(0, 100)}`);
+          emitter.emit('auth_failed', cleanData);
         }
       });
 
@@ -222,8 +232,13 @@ export class ClaudeService implements OnModuleInit {
     }
 
     try {
-      // Write the code to the PTY followed by enter
-      this.loginPtyProcess.write(code + '\r');
+      // Clean the code - remove any whitespace or newlines that might have been copied
+      const cleanCode = code.trim();
+      this.logger.log(`Clean code length: ${cleanCode.length}`);
+
+      // Write the code to the PTY followed by newline
+      // Use \n for Unix-style newline
+      this.loginPtyProcess.write(cleanCode + '\n');
       this.logger.log('Auth code submitted to PTY');
       return true;
     } catch (error) {
