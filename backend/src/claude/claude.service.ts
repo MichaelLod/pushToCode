@@ -123,17 +123,16 @@ export class ClaudeService implements OnModuleInit {
   }
 
   async triggerLogin(): Promise<string | null> {
-    this.logger.log('Triggering Claude login flow...');
+    this.logger.log('Triggering Claude login flow via setup-token...');
 
     return new Promise((resolve) => {
-      // Use --no-browser to print URL instead of opening browser
-      const loginProcess = spawn('claude', ['login', '--no-browser'], {
+      // Use setup-token command which handles headless auth
+      const loginProcess = spawn('claude', ['setup-token'], {
         cwd: '/tmp',
         env: {
           ...process.env,
           FORCE_COLOR: '0',
-          CI: '1',
-          BROWSER: 'none',
+          BROWSER: 'none',  // Prevent browser opening, force URL printing
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
