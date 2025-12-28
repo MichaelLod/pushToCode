@@ -56,14 +56,13 @@ else
   echo "No custom settings available."
 fi
 
-# Check if OAuth token is set and also set alternative env vars
-if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-  echo "OAuth token configured."
-  # Also set ANTHROPIC_AUTH_TOKEN in case Claude CLI uses that
-  export ANTHROPIC_AUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN"
-  echo "Also set ANTHROPIC_AUTH_TOKEN from CLAUDE_CODE_OAUTH_TOKEN"
+# Check authentication config
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+  echo "API key configured."
+elif [ -f "$CLAUDE_DIR/.credentials.json" ]; then
+  echo "OAuth credentials found (persisted from previous login)."
 else
-  echo "WARNING: CLAUDE_CODE_OAUTH_TOKEN not set. Claude authentication may fail."
+  echo "No auth configured. Claude will prompt for OAuth login on first use."
 fi
 
 echo "Starting application..."
