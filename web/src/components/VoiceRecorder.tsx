@@ -36,7 +36,7 @@ export function VoiceRecorder({
   }, [isOpen, isRecording, isTranscribing, startRecording]);
 
   // Handle stop and transcribe
-  const handleStop = useCallback(async () => {
+  const handleStopAndSend = useCallback(async () => {
     const result = await stopRecording();
     if (result?.text) {
       onTranscription(result.text);
@@ -44,7 +44,13 @@ export function VoiceRecorder({
     onClose();
   }, [stopRecording, onTranscription, onClose]);
 
-  // Handle cancel
+  // Handle stop only (no send)
+  const handleStopOnly = useCallback(() => {
+    cancelRecording();
+    onClose();
+  }, [cancelRecording, onClose]);
+
+  // Handle cancel (same as stop only but semantically different)
   const handleCancel = useCallback(() => {
     cancelRecording();
     onClose();
@@ -132,20 +138,29 @@ export function VoiceRecorder({
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-4 pb-6">
+          <div className="flex gap-3 pb-6">
             <button
               onClick={handleCancel}
               disabled={isTranscribing}
-              className="flex-1 min-h-[44px] px-6 py-3 rounded-xl bg-bg-primary text-text-primary font-medium
+              className="min-h-[44px] px-4 py-3 rounded-xl bg-bg-primary text-text-secondary font-medium
                        hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Cancel recording"
             >
               Cancel
             </button>
             <button
-              onClick={handleStop}
+              onClick={handleStopOnly}
               disabled={!isRecording || isTranscribing}
-              className="flex-1 min-h-[44px] px-6 py-3 rounded-xl bg-info text-bg-primary font-medium
+              className="flex-1 min-h-[44px] px-4 py-3 rounded-xl bg-error text-white font-medium
+                       hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Stop recording"
+            >
+              Stop
+            </button>
+            <button
+              onClick={handleStopAndSend}
+              disabled={!isRecording || isTranscribing}
+              className="flex-1 min-h-[44px] px-4 py-3 rounded-xl bg-info text-bg-primary font-medium
                        hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Stop and send"
             >
