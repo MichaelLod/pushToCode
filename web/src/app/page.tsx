@@ -120,10 +120,16 @@ export default function Home() {
     (text: string) => {
       if (!currentSession || !isConnected) return;
 
+      // Send text first, then Enter separately (Claude CLI needs separate keypress)
       send({
         type: "pty_input",
         sessionId: currentSession.id,
-        data: text + "\r",
+        data: text,
+      });
+      send({
+        type: "pty_input",
+        sessionId: currentSession.id,
+        data: "\r",
       });
     },
     [currentSession, isConnected, send]
