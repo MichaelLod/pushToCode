@@ -342,6 +342,11 @@ final class TerminalViewModel: ObservableObject {
     func startInteractiveSession() {
         guard let projectPath = session.projectPath else { return }
 
+        // Clear terminal output for fresh session
+        ptyOutput = ""
+        parsedOutput = AttributedString()
+        parser.reset()
+
         isStartingSession = true
         session.status = .running
 
