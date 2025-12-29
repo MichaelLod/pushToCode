@@ -39,6 +39,12 @@ final class TerminalViewModel: ObservableObject {
                 // Auto-initialize session when connection is established
                 if connected && wasDisconnected {
                     self.initializeSession()
+
+                    // If a project is already selected, also start the interactive session
+                    // This handles reconnection scenarios where the project was set before disconnect
+                    if self.session.projectPath != nil {
+                        self.startInteractiveSession()
+                    }
                 }
             }
             .store(in: &cancellables)
