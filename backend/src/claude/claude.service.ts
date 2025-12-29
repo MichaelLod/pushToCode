@@ -448,10 +448,11 @@ export class ClaudeService implements OnModuleInit {
       }
 
 
-      // Check for successful authentication
-      if (cleanData.includes('Successfully authenticated') ||
-          cleanData.includes('Authentication successful') ||
-          cleanData.includes('Logged in as')) {
+      // Check for successful authentication (use raw data, not filtered)
+      const rawText = this.stripAnsiAndControl(data);
+      if (rawText.includes('Successfully authenticated') ||
+          rawText.includes('Authentication successful') ||
+          rawText.includes('Logged in as')) {
         this.logger.log('Authentication successful in interactive session!');
         this.isAuthenticated = true;
         this.pendingAuthUrl = null;
