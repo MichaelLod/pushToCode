@@ -171,6 +171,7 @@ struct TerminalView: View {
                         Text(viewModel.parsedOutput)
                             .font(.system(size: 13, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
                     }
                 }
                 .padding(12)
