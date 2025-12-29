@@ -1,5 +1,5 @@
 /**
- * useSessions hook - Manages multi-session state
+ * useSessions hook - Manages multi-session state with localStorage persistence
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -10,6 +10,14 @@ import {
   SessionOutput,
   CreateSessionOptions,
 } from "@/types/session";
+import {
+  getSessions as getStoredSessions,
+  addSession as addStoredSession,
+  updateSession as updateStoredSession,
+  removeSession as removeStoredSession,
+  getCurrentSessionId,
+  setCurrentSessionId as storeCurrentSessionId,
+} from "@/lib/storage";
 
 export interface SessionWithTerminal extends Session {
   terminal: Terminal | null;
@@ -44,11 +52,33 @@ function generateSessionName(index: number): string {
   return `Terminal ${index + 1}`;
 }
 
+// Initialize sessions from localStorage (client-side only)
+function getInitialSessions(): SessionWithTerminal[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = getStoredSessions();
+    return stored.map((s) => ({ ...s, terminal: null }));
+  } catch {
+    return [];
+  }
+}
+
+// Initialize current session ID from localStorage (client-side only)
+function getInitialCurrentSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return getCurrentSessionId();
+  } catch {
+    return null;
+  }
+}
+
 export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn {
   const { onSessionCreate, onSessionSelect, onSessionRemove } = options;
 
-  const [sessions, setSessions] = useState<SessionWithTerminal[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  // Initialize from localStorage
+  const [sessions, setSessions] = useState<SessionWithTerminal[]>(getInitialSessions);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(getInitialCurrentSessionId);
   const [outputBySession, setOutputBySession] = useState<Record<string, SessionOutput[]>>({});
 
   const currentSession = useMemo(() => {
@@ -73,6 +103,10 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
       setCurrentSessionId(newSession.id);
       setOutputBySession((prev) => ({ ...prev, [newSession.id]: [] }));
 
+      // Persist to localStorage
+      addStoredSession(newSession);
+      storeCurrentSessionId(newSession.id);
+
       onSessionCreate?.(newSession);
 
       return newSession;
@@ -85,6 +119,7 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
       const session = sessions.find((s) => s.id === sessionId);
       if (session) {
         setCurrentSessionId(sessionId);
+        storeCurrentSessionId(sessionId); // Persist to localStorage
         onSessionSelect?.(session);
       }
     },
@@ -110,14 +145,20 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
           if (newSessions.length > 0) {
             // Select the next session, or the previous if we removed the last one
             const newIndex = Math.min(index, newSessions.length - 1);
-            setCurrentSessionId(newSessions[newIndex].id);
+            const newCurrentId = newSessions[newIndex].id;
+            setCurrentSessionId(newCurrentId);
+            storeCurrentSessionId(newCurrentId); // Persist to localStorage
           } else {
             setCurrentSessionId(null);
+            storeCurrentSessionId(null); // Persist to localStorage
           }
         }
 
         return newSessions;
       });
+
+      // Persist removal to localStorage
+      removeStoredSession(sessionId);
 
       setOutputBySession((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -132,13 +173,16 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
 
   const updateSessionStatus = useCallback(
     (sessionId: string, status: SessionStatus) => {
+      const now = new Date();
       setSessions((prev) =>
         prev.map((s) =>
           s.id === sessionId
-            ? { ...s, status, lastActivityAt: new Date() }
+            ? { ...s, status, lastActivityAt: now }
             : s
         )
       );
+      // Persist to localStorage
+      updateStoredSession(sessionId, { status, lastActivityAt: now });
     },
     []
   );
@@ -163,10 +207,11 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
 
   const addOutput = useCallback(
     (sessionId: string, output: Omit<SessionOutput, "id" | "timestamp">) => {
+      const now = new Date();
       const newOutput: SessionOutput = {
         ...output,
         id: `output-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date(),
+        timestamp: now,
       };
 
       setOutputBySession((prev) => ({
@@ -177,9 +222,11 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
       // Update last activity
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === sessionId ? { ...s, lastActivityAt: new Date() } : s
+          s.id === sessionId ? { ...s, lastActivityAt: now } : s
         )
       );
+      // Persist lastActivityAt to localStorage
+      updateStoredSession(sessionId, { lastActivityAt: now });
     },
     []
   );

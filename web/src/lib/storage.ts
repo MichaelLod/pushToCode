@@ -160,9 +160,28 @@ interface StoredSession {
   isInteractive: boolean;
 }
 
+// 7 days in milliseconds
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export function getSessions(): Session[] {
   const stored = get<StoredSession[]>(STORAGE_KEYS.SESSIONS, []);
-  return stored.map((s) => ({
+  const now = Date.now();
+
+  // Filter out expired sessions (older than 7 days)
+  const validSessions = stored.filter((s) => {
+    const lastActivity = new Date(s.lastActivityAt).getTime();
+    return now - lastActivity < SESSION_TTL_MS;
+  });
+
+  // Clean up storage if we filtered any out
+  if (validSessions.length < stored.length) {
+    set(STORAGE_KEYS.SESSIONS, validSessions);
+    console.log(
+      `[Storage] Cleaned up ${stored.length - validSessions.length} expired sessions`
+    );
+  }
+
+  return validSessions.map((s) => ({
     ...s,
     status: s.status as Session["status"],
     createdAt: new Date(s.createdAt),

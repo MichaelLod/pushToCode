@@ -18,8 +18,15 @@ export declare class ClaudeService implements OnModuleInit {
     private isAuthenticated;
     private loginPtyProcess;
     private loginEmitter;
+    private readonly SESSION_METADATA_PATH;
+    private readonly SESSION_TTL_MS;
+    private persistedSessions;
     constructor(configService: ConfigService);
     onModuleInit(): Promise<void>;
+    private loadPersistedSessions;
+    private savePersistedSessions;
+    private persistSession;
+    private getPersistedClaudeSessionId;
     private verifyCliInstalled;
     private checkAuthStatus;
     getPendingAuthUrl(): string | null;

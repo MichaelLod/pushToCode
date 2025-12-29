@@ -4,6 +4,8 @@ import { ChildProcess, spawn, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
 import * as pty from 'node-pty';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface ClaudeOutput {
   type: 'output' | 'error' | 'exit' | 'auth_required';
@@ -26,6 +28,15 @@ interface SessionData {
   lastProcessingTime?: number; // Debounce processing updates
 }
 
+// Persisted session metadata for resuming conversations across server restarts
+interface PersistedSessionMetadata {
+  sessionId: string;           // Frontend session ID
+  claudeSessionId?: string;    // Claude CLI session ID for --resume
+  projectPath: string;
+  createdAt: string;           // ISO string
+  lastActivityAt: string;      // ISO string
+}
+
 @Injectable()
 export class ClaudeService implements OnModuleInit {
   private readonly logger = new Logger(ClaudeService.name);
@@ -35,13 +46,92 @@ export class ClaudeService implements OnModuleInit {
   private loginPtyProcess: pty.IPty | null = null;
   private loginEmitter: EventEmitter | null = null;
 
+  // Session persistence configuration
+  private readonly SESSION_METADATA_PATH = path.join(process.cwd(), '.claude-sessions.json');
+  private readonly SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  private persistedSessions: Map<string, PersistedSessionMetadata> = new Map();
+
   constructor(private configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
     // First verify CLI is installed and working
     await this.verifyCliInstalled();
+    // Load persisted session metadata
+    this.loadPersistedSessions();
     // Then check Claude auth status on startup
     await this.checkAuthStatus();
+  }
+
+  // Load persisted sessions from JSON file
+  private loadPersistedSessions(): void {
+    try {
+      if (!fs.existsSync(this.SESSION_METADATA_PATH)) {
+        this.logger.log('No persisted sessions file found, starting fresh');
+        return;
+      }
+
+      const data = fs.readFileSync(this.SESSION_METADATA_PATH, 'utf-8');
+      const sessions: PersistedSessionMetadata[] = JSON.parse(data);
+      const now = Date.now();
+      let expiredCount = 0;
+
+      for (const session of sessions) {
+        const lastActivity = new Date(session.lastActivityAt).getTime();
+        if (now - lastActivity < this.SESSION_TTL_MS) {
+          this.persistedSessions.set(session.sessionId, session);
+        } else {
+          expiredCount++;
+        }
+      }
+
+      this.logger.log(
+        `Loaded ${this.persistedSessions.size} persisted sessions, expired ${expiredCount}`
+      );
+
+      // Save to clean up expired sessions
+      if (expiredCount > 0) {
+        this.savePersistedSessions();
+      }
+    } catch (error) {
+      this.logger.error(`Failed to load persisted sessions: ${error.message}`);
+    }
+  }
+
+  // Save persisted sessions to JSON file
+  private savePersistedSessions(): void {
+    try {
+      const sessions = Array.from(this.persistedSessions.values());
+      fs.writeFileSync(
+        this.SESSION_METADATA_PATH,
+        JSON.stringify(sessions, null, 2),
+        'utf-8'
+      );
+      this.logger.log(`Saved ${sessions.length} sessions to ${this.SESSION_METADATA_PATH}`);
+    } catch (error) {
+      this.logger.error(`Failed to save persisted sessions: ${error.message}`);
+    }
+  }
+
+  // Update or create persisted session metadata
+  private persistSession(sessionId: string, projectPath: string, claudeSessionId?: string): void {
+    const now = new Date().toISOString();
+    const existing = this.persistedSessions.get(sessionId);
+
+    const metadata: PersistedSessionMetadata = {
+      sessionId,
+      claudeSessionId: claudeSessionId || existing?.claudeSessionId,
+      projectPath,
+      createdAt: existing?.createdAt || now,
+      lastActivityAt: now,
+    };
+
+    this.persistedSessions.set(sessionId, metadata);
+    this.savePersistedSessions();
+  }
+
+  // Get persisted Claude session ID for a session
+  private getPersistedClaudeSessionId(sessionId: string): string | undefined {
+    return this.persistedSessions.get(sessionId)?.claudeSessionId;
   }
 
   private async verifyCliInstalled(): Promise<void> {
@@ -375,6 +465,12 @@ export class ClaudeService implements OnModuleInit {
   async startInteractiveSession(sessionId: string, projectPath: string): Promise<EventEmitter> {
     this.logger.log(`Starting interactive session ${sessionId} for project: ${projectPath}`);
 
+    // Check for persisted claudeSessionId to restore conversation
+    const persistedClaudeSessionId = this.getPersistedClaudeSessionId(sessionId);
+    if (persistedClaudeSessionId) {
+      this.logger.log(`Found persisted Claude session ID: ${persistedClaudeSessionId}`);
+    }
+
     // Initialize or get existing session
     let session = this.sessions.get(sessionId);
     if (!session) {
@@ -383,11 +479,18 @@ export class ClaudeService implements OnModuleInit {
         process: null as any,
         emitter,
         projectPath,
+        claudeSessionId: persistedClaudeSessionId, // Restore from persistence
         ptyBuffer: '',
         lastSentLength: 0,
       };
       this.sessions.set(sessionId, session);
+    } else if (persistedClaudeSessionId && !session.claudeSessionId) {
+      // Restore claudeSessionId if not already set
+      session.claudeSessionId = persistedClaudeSessionId;
     }
+
+    // Persist session metadata
+    this.persistSession(sessionId, projectPath, session.claudeSessionId);
 
     // Kill existing PTY if running and reset buffer
     if (session.ptyProcess) {
@@ -422,8 +525,15 @@ export class ClaudeService implements OnModuleInit {
       this.logger.warn(`Error checking path ${projectPath}: ${err.message}`);
     }
 
+    // Build CLI args, including --resume if we have a Claude session ID
+    const cliArgs = ['--dangerously-skip-permissions'];
+    if (session.claudeSessionId) {
+      cliArgs.push('--resume', session.claudeSessionId);
+      this.logger.log(`Resuming Claude conversation: ${session.claudeSessionId}`);
+    }
+
     // Spawn Claude CLI in interactive mode using PTY
-    const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
+    const ptyProcess = pty.spawn('claude', cliArgs, {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
@@ -436,7 +546,7 @@ export class ClaudeService implements OnModuleInit {
     });
 
     session.ptyProcess = ptyProcess;
-    this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
+    this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}, args: ${cliArgs.join(' ')}`);
 
     ptyProcess.onData((data: string) => {
       // Filter processing spam before sending
@@ -488,14 +598,24 @@ export class ClaudeService implements OnModuleInit {
       await this.stopSession(sessionId);
     }
 
+    // Check for persisted claudeSessionId to restore conversation
+    const persistedClaudeSessionId = this.getPersistedClaudeSessionId(sessionId);
+    if (persistedClaudeSessionId) {
+      this.logger.log(`Restoring Claude session ID: ${persistedClaudeSessionId}`);
+    }
+
     const emitter = new EventEmitter();
     this.sessions.set(sessionId, {
       process: null as any,
       emitter,
       projectPath,
+      claudeSessionId: persistedClaudeSessionId, // Restore from persistence
       ptyBuffer: '',
       lastSentLength: 0,
     });
+
+    // Persist session metadata
+    this.persistSession(sessionId, projectPath, persistedClaudeSessionId);
 
     this.logger.log(
       `Session ${sessionId} initialized for project: ${projectPath}`,
@@ -510,6 +630,15 @@ export class ClaudeService implements OnModuleInit {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
+    }
+
+    // Restore claudeSessionId from persistence if not already set
+    if (!session.claudeSessionId) {
+      const persistedClaudeSessionId = this.getPersistedClaudeSessionId(sessionId);
+      if (persistedClaudeSessionId) {
+        session.claudeSessionId = persistedClaudeSessionId;
+        this.logger.log(`Restored Claude session ID from persistence: ${persistedClaudeSessionId}`);
+      }
     }
 
     // Kill existing process if running
@@ -602,6 +731,8 @@ export class ClaudeService implements OnModuleInit {
           if (parsed.session_id && !session.claudeSessionId) {
             session.claudeSessionId = parsed.session_id;
             this.logger.log(`Captured Claude session ID: ${parsed.session_id}`);
+            // Persist the session with the new Claude session ID
+            this.persistSession(sessionId, projectPath, parsed.session_id);
           }
 
           const output = this.parseClaudeOutput(parsed);
