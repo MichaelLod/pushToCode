@@ -21,10 +21,21 @@ final class TerminalViewModel: ObservableObject {
     private let settingsManager = SettingsManager.shared
     private let parser = ANSIParser()
     private var cancellables = Set<AnyCancellable>()
+    private var idleTimer: Timer?
+    private let idleTimeoutSeconds: TimeInterval = 2.0
 
     init(session: Session) {
         self.session = session
         setupBindings()
+
+        // If WebSocket is already connected, initialize session immediately
+        // This handles new tabs created while connection is active
+        if webSocketService.isConnected {
+            initializeSession()
+            if session.projectPath != nil {
+                startInteractiveSession()
+            }
+        }
     }
 
     private func setupBindings() {
@@ -77,6 +88,8 @@ final class TerminalViewModel: ObservableObject {
     }
 
     func disconnect() {
+        idleTimer?.invalidate()
+        idleTimer = nil
         webSocketService.disconnect()
         session.status = .disconnected
         ptyOutput = ""
@@ -117,7 +130,21 @@ final class TerminalViewModel: ObservableObject {
     // MARK: - Message Handling
 
     private func handleMessage(_ message: ServerMessage) {
-        guard message.sessionId == session.id || message.sessionId == nil else { return }
+        // Global messages that don't require session matching (connection-level)
+        // - ping/pong: heartbeat for connection
+        // - auth*: authentication affects entire connection, not just one session
+        let globalMessageTypes: Set<ServerMessageType> = [
+            .ping, .pong,
+            .authRequired, .authSuccess, .authFailed, .authCodeSubmitted
+        ]
+
+        // For session-scoped messages, require exact sessionId match
+        // Empty string or nil sessionId means "not for this session" unless it's a global message
+        if !globalMessageTypes.contains(message.type) {
+            guard let messageSessionId = message.sessionId,
+                  !messageSessionId.isEmpty,
+                  messageSessionId == session.id else { return }
+        }
 
         switch message.type {
         case .sessionReady:
@@ -248,11 +275,28 @@ final class TerminalViewModel: ObservableObject {
     private func handlePtyOutput(_ message: ServerMessage) {
         guard let content = message.content, !content.isEmpty else { return }
 
+        // Cancel any pending idle timer - we're receiving output
+        idleTimer?.invalidate()
+        idleTimer = nil
+
+        // We're receiving output, so we're actively running
+        if session.status != .running {
+            session.status = .running
+        }
+
         // Accumulate PTY output for terminal display
         ptyOutput += content
 
         // Parse ANSI codes and update attributed output
         parsedOutput = parser.parse(ptyOutput)
+
+        // Start idle detection timer
+        // If no more output for N seconds, consider Claude idle (waiting for input)
+        idleTimer = Timer.scheduledTimer(withTimeInterval: idleTimeoutSeconds, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.session.status = .idle
+            }
+        }
     }
 
     /// Send raw input directly to PTY (used by SwiftTerm)
@@ -341,6 +385,10 @@ final class TerminalViewModel: ObservableObject {
 
     func startInteractiveSession() {
         guard let projectPath = session.projectPath else { return }
+
+        // Cancel any pending idle timer from previous session
+        idleTimer?.invalidate()
+        idleTimer = nil
 
         // Clear terminal output for fresh session
         ptyOutput = ""
