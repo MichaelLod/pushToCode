@@ -102,8 +102,8 @@ export function useSettings(): UseSettingsReturn {
 
   const setFontSize = useCallback(
     (fontSize: number) => {
-      // Clamp to valid range
-      const clamped = Math.min(20, Math.max(12, fontSize));
+      // Clamp to valid range (8-20px for mobile support)
+      const clamped = Math.min(20, Math.max(8, fontSize));
       updateAndPersist({ fontSize: clamped });
     },
     [updateAndPersist]

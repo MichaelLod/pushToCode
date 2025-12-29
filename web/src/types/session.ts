@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiKey: "",
   serverUrl: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001",
   theme: "dark",
-  fontSize: 14,
+  fontSize: 10,
   fontFamily: "Geist Mono, monospace",
   scrollbackLines: 10000,
   soundEnabled: true,
