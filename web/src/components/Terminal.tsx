@@ -68,6 +68,10 @@ export function Terminal({
         backgroundColor: "#1a1b26",
         // Mobile viewport handling
         paddingBottom: "env(safe-area-inset-bottom)",
+        // Enable touch scrolling
+        touchAction: "pan-y",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
       }}
     >
       <div
@@ -75,8 +79,9 @@ export function Terminal({
         style={{
           width: "100%",
           height: "100%",
-          // Ensure terminal fills container
-          overflow: "hidden",
+          // Allow xterm.js internal scrolling to work
+          overflow: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       />
     </div>

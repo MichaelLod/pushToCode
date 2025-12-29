@@ -61,7 +61,13 @@ body {
 .terminal-container {
   background: var(--bg-primary);
   border-radius: 8px;
-  overflow: hidden;
+}
+
+/* xterm viewport - enable touch scrolling */
+.xterm-viewport {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overflow-y: scroll !important;
 }
 
 /* Scrollbar styling for terminal */
