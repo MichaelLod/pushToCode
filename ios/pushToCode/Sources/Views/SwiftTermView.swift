@@ -5,11 +5,19 @@ import SwiftTerm
 struct SwiftTermView: UIViewRepresentable {
     @ObservedObject var viewModel: TerminalViewModel
 
-    func makeUIView(context: Context) -> SwiftTerm.TerminalView {
-        let terminalView = SwiftTerm.TerminalView(frame: .zero)
+    func makeUIView(context: Context) -> UIView {
+        // Create a container view for proper sizing
+        let containerView = UIView()
+        containerView.backgroundColor = .black
 
-        // Ensure proper retina scaling
+        let terminalView = SwiftTerm.TerminalView(frame: .zero)
+        terminalView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Sharp rendering settings
         terminalView.contentScaleFactor = UIScreen.main.scale
+        terminalView.layer.contentsScale = UIScreen.main.scale
+        terminalView.layer.rasterizationScale = UIScreen.main.scale
+        terminalView.layer.shouldRasterize = false
 
         // Set dark background
         terminalView.nativeBackgroundColor = .black
@@ -19,15 +27,27 @@ struct SwiftTermView: UIViewRepresentable {
         let fontSize: CGFloat = 14
         terminalView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 
+        containerView.addSubview(terminalView)
+
+        // Pin terminal view to container edges
+        NSLayoutConstraint.activate([
+            terminalView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            terminalView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            terminalView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            terminalView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor)
+        ])
+
         // Store reference in coordinator
         context.coordinator.terminalView = terminalView
 
-        return terminalView
+        return containerView
     }
 
-    func updateUIView(_ terminalView: SwiftTerm.TerminalView, context: Context) {
+    func updateUIView(_ uiView: UIView, context: Context) {
         // Feed new PTY data to terminal
-        context.coordinator.processOutput(viewModel.ptyOutput, terminalView: terminalView)
+        if let terminalView = context.coordinator.terminalView {
+            context.coordinator.processOutput(viewModel.ptyOutput, terminalView: terminalView)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
