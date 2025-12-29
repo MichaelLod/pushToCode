@@ -812,9 +812,22 @@ export class ClaudeService implements OnModuleInit {
       /^Model:/,
       /^Context:/,
       /^\s*>\s*$/,  // Empty prompt
-      /esc to interrupt/,
+      /^>\s+\S/,    // Input echo ("> Say hi")
+      /esc to interrupt/i,
       /Enchanting/,
       /Thinking/,
+      /bypass permissions/i,
+      /shift\+tab to cycle/i,
+      /Tip:/i,
+      /Did you know/i,
+      /drag and drop/i,
+      /Recent activity/i,
+      /No recent/i,
+      /↵\s*send/i,
+      /UserPromptSubmit hook/i,
+      /^\*\s*[▛▜▝▘▙▟]\s*\*/,  // ASCII art blocks
+      /^\s*\*\s+\*\s*$/,      // Just asterisks
+      /cycle\)$/,              // Ends with "cycle)"
     ];
 
     // If it matches UI patterns and has no substantial content, skip it
