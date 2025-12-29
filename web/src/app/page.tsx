@@ -223,8 +223,8 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col bg-bg-primary">
-      {/* Header */}
-      <header className="flex h-12 items-center justify-between border-b border-border px-4">
+      {/* Header - with safe area padding for PWA mode */}
+      <header className="flex min-h-12 items-center justify-between border-b border-border px-4 pt-[env(safe-area-inset-top)]">
         <h1 className="text-lg font-semibold text-text-primary">pushToCode</h1>
         <div className="flex items-center gap-4">
           <ConnectionStatus status={status} />

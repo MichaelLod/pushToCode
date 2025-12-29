@@ -97,7 +97,7 @@ export function InputBar({
 
   return (
     <>
-      <div className="border-t border-border bg-bg-primary p-4">
+      <div className="border-t border-border bg-bg-primary p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {/* Keyboard controls row */}
         {showKeyboard && (
           <div className="mb-3 -mx-4 px-4 py-2 bg-bg-secondary border-b border-border">

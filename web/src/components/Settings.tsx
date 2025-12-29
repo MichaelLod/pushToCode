@@ -312,8 +312,8 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
           animate-in slide-in-from-right duration-300
         `}
       >
-        {/* Header */}
-        <header className="flex items-center justify-between border-b border-border px-4 h-14 shrink-0">
+        {/* Header - with safe area padding for PWA mode */}
+        <header className="flex items-center justify-between border-b border-border px-4 min-h-14 shrink-0 pt-[env(safe-area-inset-top)]">
           <h2 id="settings-title" className="text-lg font-semibold text-text-primary">
             Settings
           </h2>
