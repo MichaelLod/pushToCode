@@ -795,26 +795,18 @@ export class ClaudeService implements OnModuleInit {
     return 'text';
   }
 
-  // Strip ALL ANSI escape sequences and TUI decorations - iOS can't render them
+  // Strip only ANSI escape sequences - keep all visual content
   private stripAnsiAndControl(data: string): string {
     return data
-      // Strip ALL ANSI escape sequences (colors, cursor, etc.)
-      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')    // CSI sequences (colors, cursor, etc.)
+      // Strip ANSI escape sequences (colors, cursor movement, etc.)
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')    // CSI sequences
       .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '')  // Private CSI sequences
-      .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC sequences (window title, etc.)
+      .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC sequences
       .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '') // DCS, SOS, PM, APC sequences
       .replace(/\x1b[\(\)][AB012]/g, '')        // Character set selection
       .replace(/\x1b[=>]/g, '')                 // Keypad mode
-      // Remove other control characters except newline/tab/carriage return
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-      // Remove box drawing characters and decorations
-      .replace(/[╭╮╯╰│├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓·•●○◦◘◙►◄▲▼◢◣◤◥★☆✓✗✘✔✕✖⏺⏸⏹⏵⏴◐◑◒◓⬤⬡⬢⬣]/g, '')
-      // Remove spinner/loading characters
-      .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '')
-      // Remove lines that are only whitespace and dashes/equals
-      .replace(/^[\s─═\-=]+$/gm, '')
-      // Collapse multiple newlines into single
-      .replace(/\n{3,}/g, '\n\n');
+      // Remove control characters except newline/tab/carriage return
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   }
 
   // Extract only meaningful content from Claude's output

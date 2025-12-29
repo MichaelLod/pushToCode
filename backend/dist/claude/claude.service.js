@@ -664,11 +664,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '')
             .replace(/\x1b[\(\)][AB012]/g, '')
             .replace(/\x1b[=>]/g, '')
-            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-            .replace(/[╭╮╯╰│├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓·•●○◦◘◙►◄▲▼◢◣◤◥★☆✓✗✘✔✕✖⏺⏸⏹⏵⏴◐◑◒◓⬤⬡⬢⬣]/g, '')
-            .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '')
-            .replace(/^[\s─═\-=]+$/gm, '')
-            .replace(/\n{3,}/g, '\n\n');
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     }
     extractClaudeResponse(data) {
         const cleaned = this.stripAnsiAndControl(data);
