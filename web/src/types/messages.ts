@@ -114,6 +114,7 @@ export interface TerminalBufferData {
   cursorY: number;
   cols: number;
   rows: number;
+  ansiContent?: string;  // Full ANSI-formatted content with colors preserved
 }
 
 export interface SessionReadyMessage {

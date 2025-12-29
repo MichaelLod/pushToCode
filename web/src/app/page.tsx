@@ -76,12 +76,13 @@ export default function Home() {
         useBufferModeRef.current = true; // Switch to buffer mode, disable pty_output handling
         if ((message as TerminalBufferMessage).buffer) {
           const buffer = (message as TerminalBufferMessage).buffer;
-          // Clear terminal and render the complete buffer
-          terminalClearRef.current?.();
-          // Write all lines from the buffer
-          const content = buffer.lines.join("\n");
-          terminalWriteRef.current?.(content);
-          // Persist the buffer content
+          // Use ANSI content with colors if available, otherwise fall back to plain lines
+          // Prepend cursor home + clear screen to avoid flicker from separate clear() call
+          const content = buffer.ansiContent ?? buffer.lines.join("\n");
+          // Use ANSI escape codes: \x1b[H = cursor home, \x1b[2J = clear screen
+          // This is smoother than calling clear() separately because it's a single write
+          terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
+          // Persist the buffer content (with ANSI codes for color restoration)
           if (message.sessionId) {
             // Store the complete buffer (replace, not append)
             localStorage.setItem(`terminal_output_${message.sessionId}`, content);
