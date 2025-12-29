@@ -8,16 +8,16 @@ struct SwiftTermView: UIViewRepresentable {
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminalView = SwiftTerm.TerminalView(frame: .zero)
 
+        // Ensure proper retina scaling
+        terminalView.contentScaleFactor = UIScreen.main.scale
+
         // Set dark background
         terminalView.nativeBackgroundColor = .black
         terminalView.nativeForegroundColor = .white
 
-        // Set font
-        let fontSize: CGFloat = 13
+        // Set font - use a larger size for better readability on mobile
+        let fontSize: CGFloat = 14
         terminalView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-
-        // Set terminal size (cols x rows)
-        terminalView.getTerminal().resize(cols: 120, rows: 30)
 
         // Store reference in coordinator
         context.coordinator.terminalView = terminalView
