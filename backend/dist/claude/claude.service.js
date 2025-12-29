@@ -174,6 +174,23 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                 if (cleanData) {
                     emitter.emit('pty_output', cleanData);
                 }
+                if (!authSuccessEmitted && cleanData.includes('Welcome back')) {
+                    this.logger.log('User already authenticated (Welcome back detected)');
+                    this.isAuthenticated = true;
+                    this.pendingAuthUrl = null;
+                    authSuccessEmitted = true;
+                    setTimeout(() => {
+                        if (this.loginPtyProcess === ptyProcess) {
+                            ptyProcess.kill();
+                            this.loginPtyProcess = null;
+                        }
+                    }, 100);
+                    emitter.emit('auth_success');
+                    if (!foundUrl) {
+                        resolve({ url: null, emitter });
+                    }
+                    return;
+                }
                 const isOnboardingPrompt = (cleanData.includes('Dark mode') ||
                     cleanData.includes('Light mode') ||
                     cleanData.includes('Choose the text style') ||

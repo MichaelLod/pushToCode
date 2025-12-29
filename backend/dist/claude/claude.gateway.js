@@ -281,6 +281,14 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                     message: 'Please authenticate with Claude to continue.',
                 });
             }
+            else if (this.claudeService.isClaudeAuthenticated()) {
+                this.logger.log('User already authenticated, notifying client');
+                this.sendMessage(client, {
+                    type: 'auth_success',
+                    sessionId: '',
+                    message: 'Already authenticated with Claude!',
+                });
+            }
             else {
                 this.sendError(client, '', 'LOGIN_FAILED', 'Could not get authentication URL. Please try again.');
             }

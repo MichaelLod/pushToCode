@@ -57,7 +57,13 @@ export class WebSocketClient {
     this.setStatus("connecting");
 
     try {
-      this.ws = new WebSocket(this.options.url);
+      // Build URL with API key as query param (browser WebSocket can't send headers)
+      let wsUrl = this.options.url;
+      if (this.options.apiKey) {
+        const separator = wsUrl.includes("?") ? "&" : "?";
+        wsUrl = `${wsUrl}${separator}apiKey=${encodeURIComponent(this.options.apiKey)}`;
+      }
+      this.ws = new WebSocket(wsUrl);
       this.setupEventHandlers();
     } catch (error) {
       this.setStatus("error");
@@ -117,10 +123,9 @@ export class WebSocketClient {
       this.reconnectAttempts = 0;
       this.setStatus("connected");
 
-      // Authenticate if API key is set
-      if (this.options.apiKey) {
-        this.send({ type: "login", apiKey: this.options.apiKey });
-      }
+      // Note: API key is already sent in URL query params (line 62-64)
+      // and validated by the gateway on connection. The "login" message
+      // is only for triggering OAuth flow when needed, not for API key auth.
 
       // Send queued messages
       this.flushMessageQueue();

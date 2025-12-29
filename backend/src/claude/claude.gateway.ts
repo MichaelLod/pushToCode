@@ -363,6 +363,14 @@ export class ClaudeGateway
           authUrl,
           message: 'Please authenticate with Claude to continue.',
         });
+      } else if (this.claudeService.isClaudeAuthenticated()) {
+        // User was already authenticated (detected "Welcome back")
+        this.logger.log('User already authenticated, notifying client');
+        this.sendMessage(client, {
+          type: 'auth_success',
+          sessionId: '',
+          message: 'Already authenticated with Claude!',
+        });
       } else {
         this.sendError(
           client,

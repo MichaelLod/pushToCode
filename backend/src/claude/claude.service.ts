@@ -171,8 +171,30 @@ export class ClaudeService implements OnModuleInit {
         // Strip ANSI escape codes and control sequences for clean display
         const cleanData = this.stripAnsiAndControl(data);
         if (cleanData) {
-          // Emit PTY output to iOS app so user can see everything
+          // Emit PTY output to client so user can see everything
           emitter.emit('pty_output', cleanData);
+        }
+
+        // Check if user is ALREADY authenticated (no auth URL needed)
+        // When already logged in, claude login shows "Welcome back" and waits for input
+        if (!authSuccessEmitted && cleanData.includes('Welcome back')) {
+          this.logger.log('User already authenticated (Welcome back detected)');
+          this.isAuthenticated = true;
+          this.pendingAuthUrl = null;
+          authSuccessEmitted = true;
+          // Kill the login process since we don't need it
+          setTimeout(() => {
+            if (this.loginPtyProcess === ptyProcess) {
+              ptyProcess.kill();
+              this.loginPtyProcess = null;
+            }
+          }, 100);
+          emitter.emit('auth_success');
+          // Resolve with null URL since auth isn't needed
+          if (!foundUrl) {
+            resolve({ url: null, emitter });
+          }
+          return;
         }
 
         // Handle onboarding prompts by pressing Enter to accept defaults
