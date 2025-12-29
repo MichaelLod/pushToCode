@@ -81,22 +81,52 @@ export class ClaudeService implements OnModuleInit {
           if (!promptSent) {
             promptSent = true;
             setTimeout(() => {
-              this.logger.log('[STARTUP TEST] Sending "Say hi" prompt with \\r (carriage return)...');
-              // Try carriage return instead of newline - Claude may expect \r to submit
-              ptyProcess.write('Say hi\r');
-              this.logger.log('[STARTUP TEST] Prompt sent with \\r');
+              this.logger.log('[STARTUP TEST] Testing multiple submission methods...');
+
+              // Method 1: Plain text + \r (carriage return)
+              ptyProcess.write('Say hi');
+              this.logger.log('[STARTUP TEST] Sent text "Say hi"');
+
+              // Wait a moment, then try Enter key
+              setTimeout(() => {
+                this.logger.log('[STARTUP TEST] Sending Enter (\\r)...');
+                ptyProcess.write('\r');
+              }, 500);
+
+              // If that doesn't work, try Ctrl+J (Line Feed) after 2 seconds
+              setTimeout(() => {
+                this.logger.log('[STARTUP TEST] Sending Ctrl+J (Line Feed \\x0a)...');
+                ptyProcess.write('\x0a');
+              }, 2500);
+
+              // Try Ctrl+M (Carriage Return) after 4 seconds
+              setTimeout(() => {
+                this.logger.log('[STARTUP TEST] Sending Ctrl+M (\\x0d)...');
+                ptyProcess.write('\x0d');
+              }, 4500);
+
             }, 1000);
           }
         }
 
-        // Detect Claude's response (contains "Hi" or similar greeting)
+        // Detect Claude's response - look for actual AI response patterns
+        // NOT just "Claude" which appears in the startup banner
         if (promptSent && !responseReceived) {
-          if (cleanData.toLowerCase().includes('hello') ||
-              cleanData.toLowerCase().includes('hi there') ||
-              cleanData.toLowerCase().includes('hey') ||
-              cleanData.includes('Claude')) {
+          // Look for response patterns that indicate Claude actually replied
+          const isActualResponse =
+            (cleanData.toLowerCase().includes('hello') && !cleanData.includes('Claude Code')) ||
+            cleanData.toLowerCase().includes('hi there') ||
+            cleanData.toLowerCase().includes('hi!') ||
+            cleanData.toLowerCase().includes("how can i help") ||
+            cleanData.toLowerCase().includes("how may i") ||
+            cleanData.includes('thinking') ||  // Claude's thinking indicator
+            cleanData.includes('⏺') ||  // Claude's response indicator
+            cleanData.includes('│ ');  // Response box formatting
+
+          if (isActualResponse) {
             responseReceived = true;
-            this.logger.log('[STARTUP TEST] SUCCESS - Got response from Claude!');
+            this.logger.log('[STARTUP TEST] SUCCESS - Got actual response from Claude!');
+            this.logger.log(`[STARTUP TEST] Response content: ${cleanData.substring(0, 300)}`);
           }
         }
       });
