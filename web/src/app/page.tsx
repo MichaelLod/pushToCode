@@ -252,20 +252,18 @@ export default function Home() {
       </header>
 
       {/* Main content area */}
-      <main className="flex flex-1 overflow-hidden">
-        {/* Sidebar with session tabs */}
-        <aside className="hidden w-64 flex-col border-r border-border bg-bg-secondary md:flex">
-          <SessionTabs
-            sessions={sessions}
-            currentSessionId={currentSession?.id ?? null}
-            onSelectSession={selectSession}
-            onCloseSession={removeSession}
-            onAddSession={handleNewSession}
-          />
-        </aside>
+      <main className="flex flex-1 flex-col overflow-hidden">
+        {/* Horizontal session tabs */}
+        <SessionTabs
+          sessions={sessions}
+          currentSessionId={currentSession?.id ?? null}
+          onSelectSession={selectSession}
+          onCloseSession={removeSession}
+          onAddSession={handleNewSession}
+        />
 
         {/* Terminal area */}
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-h-0">
           {/* Show config prompt if not configured */}
           {needsConfig ? (
             <div className="flex flex-1 items-center justify-center p-4">
