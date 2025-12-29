@@ -81,10 +81,10 @@ export class ClaudeService implements OnModuleInit {
           if (!promptSent) {
             promptSent = true;
             setTimeout(() => {
-              this.logger.log('[STARTUP TEST] Sending "Say hi" prompt...');
-              // Try simple approach: just type the text and press Enter
-              ptyProcess.write('Say hi\n');
-              this.logger.log('[STARTUP TEST] Prompt sent');
+              this.logger.log('[STARTUP TEST] Sending "Say hi" prompt with \\r (carriage return)...');
+              // Try carriage return instead of newline - Claude may expect \r to submit
+              ptyProcess.write('Say hi\r');
+              this.logger.log('[STARTUP TEST] Prompt sent with \\r');
             }, 1000);
           }
         }
@@ -429,49 +429,14 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
-      // Claude Code enables bracketed paste mode (ESC[?2004h)
-      // We need to wrap input in paste sequences for it to be accepted
-      const PASTE_START = '\x1b[200~';
-      const PASTE_END = '\x1b[201~';
-      const ESC = '\x1b';
-
-      // Remove any existing line endings
+      // Remove any existing line endings from input
       const textOnly = input.replace(/[\r\n]+$/, '');
-      // Wrap in bracketed paste, then send Enter separately
-      const pastedText = PASTE_START + textOnly + PASTE_END;
-      this.logger.log(`Sending bracketed paste: "${textOnly}" then Enter`);
 
-      // First, send Escape to dismiss any autocomplete menu that might be showing
-      // Claude CLI shows autocomplete/history suggestions that intercept Enter
-      session.ptyProcess.write(ESC);
-
-      // Check if this is a slash command (starts with /)
-      // Claude CLI shows autocomplete for these - need double-Enter:
-      // 1st Enter confirms autocomplete selection, 2nd Enter executes
-      const isSlashCommand = textOnly.startsWith('/');
-
-      if (isSlashCommand) {
-        this.logger.log(`Detected slash command: ${textOnly}, sending with double-Enter`);
-        // Send bracketed paste text, then newline to confirm autocomplete
-        session.ptyProcess.write(pastedText);
-        session.ptyProcess.write('\n');
-        this.logger.log(`First write complete (paste + newline)`);
-        // After delay, send second newline to execute the command
-        setTimeout(() => {
-          const currentSession = this.sessions.get(sessionId);
-          if (currentSession?.ptyProcess) {
-            this.logger.log(`Sending second newline for slash command execution`);
-            currentSession.ptyProcess.write('\n');
-            this.logger.log(`Second newline sent`);
-          } else {
-            this.logger.warn(`PTY no longer active for second newline`);
-          }
-        }, 200);
-      } else {
-        // Regular input - send bracketed paste, then newline to submit
-        session.ptyProcess.write(pastedText);
-        session.ptyProcess.write('\n');
-      }
+      // Send plain text + carriage return (not bracketed paste)
+      // Claude CLI expects \r (carriage return) to submit, not \n (newline)
+      this.logger.log(`Sending plain text: "${textOnly}" + carriage return`);
+      session.ptyProcess.write(textOnly);
+      session.ptyProcess.write('\r');
 
       this.logger.log(`PTY input sent successfully`);
       return true;
