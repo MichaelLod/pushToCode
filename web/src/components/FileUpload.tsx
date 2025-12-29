@@ -241,7 +241,7 @@ export function FileUpload({
       {/* Dropdown menu */}
       {showMenu && (
         <div
-          className="absolute bottom-full left-0 mb-2 bg-bg-secondary rounded-xl shadow-lg
+          className="absolute bottom-full right-0 mb-2 bg-bg-secondary rounded-xl shadow-lg
                      border border-border overflow-hidden min-w-[180px] z-50"
           role="menu"
         >
@@ -305,7 +305,7 @@ export function FileUpload({
 
       {/* Preview thumbnails */}
       {attachments.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 flex gap-2 p-2 bg-bg-secondary rounded-xl
+        <div className="absolute bottom-full right-0 mb-2 flex gap-2 p-2 bg-bg-secondary rounded-xl
                        border border-border max-w-[280px] overflow-x-auto">
           {attachments.map((attachment) => (
             <div key={attachment.id} className="relative flex-shrink-0">
