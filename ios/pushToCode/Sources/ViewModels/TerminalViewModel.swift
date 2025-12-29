@@ -284,15 +284,22 @@ final class TerminalViewModel: ObservableObject {
             session.status = .running
         }
 
-        // Detect screen clear sequences and reset buffer
-        // Claude CLI sends these when redrawing the TUI
-        if content.contains("\u{1b}[2J") || content.contains("\u{1b}[H\u{1b}[J") {
-            ptyOutput = ""
-            parser.reset()
-        }
+        // Claude CLI is a TUI that redraws the screen using cursor positioning.
+        // Since we don't have a real terminal emulator, detect full "frames" and replace.
+        // A frame typically contains cursor home sequences or multiple lines with status elements.
+        let isFullFrame = content.contains("\u{1b}[H") ||  // Cursor home
+                          content.contains("\u{1b}[2J") || // Clear screen
+                          content.contains("\u{1b}[1;1H") || // Cursor to 1,1
+                          (content.contains("bypass permissions") && content.count > 200) // Large chunk with status bar
 
-        // Accumulate PTY output for terminal display
-        ptyOutput += content
+        if isFullFrame {
+            // This is a full screen redraw - replace buffer
+            ptyOutput = content
+            parser.reset()
+        } else {
+            // Small incremental update - append
+            ptyOutput += content
+        }
 
         // Parse ANSI codes and update attributed output
         parsedOutput = parser.parse(ptyOutput)

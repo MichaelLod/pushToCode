@@ -99,30 +99,45 @@ final class ANSIParser {
 
         // Check for CSI (Control Sequence Introducer): ESC[
         guard index < text.endIndex, text[index] == "[" else {
+            // Handle non-CSI escape sequences (ESC followed by single char)
+            // Skip the character after ESC
+            if index < text.endIndex {
+                return (text.index(after: index), [])
+            }
             return nil
         }
 
         index = text.index(after: index)
 
-        // Collect parameter bytes (digits and semicolons)
+        // Skip private parameter prefix (?, >, <, =)
+        if index < text.endIndex {
+            let char = text[index]
+            if char == "?" || char == ">" || char == "<" || char == "=" {
+                index = text.index(after: index)
+            }
+        }
+
+        // Collect parameter bytes (digits, semicolons, and intermediate bytes)
         var parameterString = ""
 
         while index < text.endIndex {
             let char = text[index]
 
-            if char.isNumber || char == ";" {
+            if char.isNumber || char == ";" || char == ":" {
                 parameterString.append(char)
                 index = text.index(after: index)
             } else if char == "m" {
-                // SGR (Select Graphic Rendition) sequence
+                // SGR (Select Graphic Rendition) sequence - parse colors
                 index = text.index(after: index)
-
                 let codes = parseSGRParameters(parameterString)
                 return (index, codes)
-            } else {
-                // Some other CSI sequence we don't handle - skip it
+            } else if char.isLetter || char == "@" || char == "`" {
+                // Other CSI sequence (cursor, clear, etc.) - consume and skip
                 index = text.index(after: index)
                 return (index, [])
+            } else {
+                // Unknown character, skip it
+                index = text.index(after: index)
             }
         }
 
