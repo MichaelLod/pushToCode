@@ -63,7 +63,9 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   // Store callbacks in refs to avoid re-creating terminal on callback changes
   const onInputRef = useRef(onInput);
   const onResizeRef = useRef(onResize);
+  // eslint-disable-next-line react-hooks/refs -- Keep refs in sync with latest callbacks
   onInputRef.current = onInput;
+  // eslint-disable-next-line react-hooks/refs -- Keep refs in sync with latest callbacks
   onResizeRef.current = onResize;
 
   // Initialize terminal
@@ -174,6 +176,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     return { cols: terminal.cols, rows: terminal.rows };
   }, []);
 
+  /* eslint-disable react-hooks/refs -- Expose terminal instance for external use */
   return {
     terminalRef,
     terminal: terminalInstanceRef.current,
@@ -185,4 +188,5 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     fit,
     getSize,
   };
+  /* eslint-enable react-hooks/refs */
 }

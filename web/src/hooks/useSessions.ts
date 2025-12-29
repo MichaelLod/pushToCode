@@ -120,7 +120,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
       });
 
       setOutputBySession((prev) => {
-        const { [sessionId]: _, ...rest } = prev;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [sessionId]: _removed, ...rest } = prev;
         return rest;
       });
 

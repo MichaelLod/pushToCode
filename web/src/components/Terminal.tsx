@@ -36,6 +36,7 @@ export function Terminal({
   });
 
   const onReadyRef = useRef(onReady);
+  // eslint-disable-next-line react-hooks/refs -- Keep ref in sync with latest callback
   onReadyRef.current = onReady;
 
   // Notify parent when terminal is ready

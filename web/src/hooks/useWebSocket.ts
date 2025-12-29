@@ -31,13 +31,14 @@ export interface UseWebSocketReturn {
 }
 
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
-  const { url, apiKey, autoConnect = true, onMessage, onStatusChange, onError } = options;
+  const { url, apiKey, autoConnect = true } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const clientRef = useRef<WebSocketClient | null>(null);
   const optionsRef = useRef(options);
 
   // Keep options ref updated
+  // eslint-disable-next-line react-hooks/refs -- Keep ref in sync with latest options
   optionsRef.current = options;
 
   // Initialize client
@@ -106,7 +107,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     connect,
     disconnect,
     send,
-    client: clientRef.current,
+    client: clientRef.current, // eslint-disable-line react-hooks/refs -- Expose instance
   };
 }
 
