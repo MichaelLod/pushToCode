@@ -351,12 +351,17 @@ export class ClaudeService implements OnModuleInit {
       // We need to wrap input in paste sequences for it to be accepted
       const PASTE_START = '\x1b[200~';
       const PASTE_END = '\x1b[201~';
+      const ESC = '\x1b';
 
       // Remove any existing line endings
       const textOnly = input.replace(/[\r\n]+$/, '');
       // Wrap in bracketed paste, then send Enter separately
       const pastedText = PASTE_START + textOnly + PASTE_END;
       this.logger.log(`Sending bracketed paste: "${textOnly}" then Enter`);
+
+      // First, send Escape to dismiss any autocomplete menu that might be showing
+      // Claude CLI shows autocomplete/history suggestions that intercept Enter
+      session.ptyProcess.write(ESC);
 
       // Check if this is a slash command (starts with /)
       // Claude CLI shows autocomplete for these - need double-Enter:
@@ -381,7 +386,7 @@ export class ClaudeService implements OnModuleInit {
           }
         }, 200);
       } else {
-        // Regular input - send bracketed paste, then newline to submit (like login flow)
+        // Regular input - send bracketed paste, then newline to submit
         session.ptyProcess.write(pastedText);
         session.ptyProcess.write('\n');
       }
