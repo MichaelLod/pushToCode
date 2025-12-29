@@ -354,16 +354,22 @@ export class ClaudeService implements OnModuleInit {
       const isSlashCommand = trimmedInput.startsWith('/');
 
       if (isSlashCommand) {
-        this.logger.log(`Detected slash command: ${trimmedInput}`);
+        this.logger.log(`Detected slash command: ${trimmedInput}, sending with double-Enter`);
         // Send command + Enter to confirm autocomplete selection
         session.ptyProcess.write(input);
-        // After short delay, send second Enter to execute
+        this.logger.log(`First write complete (command + Enter)`);
+        // After delay, send second Enter to execute the command
+        // Use 200ms to ensure autocomplete has time to process
         setTimeout(() => {
-          if (session.ptyProcess) {
+          const currentSession = this.sessions.get(sessionId);
+          if (currentSession?.ptyProcess) {
             this.logger.log(`Sending second Enter for slash command execution`);
-            session.ptyProcess.write('\r');
+            currentSession.ptyProcess.write('\r');
+            this.logger.log(`Second Enter sent`);
+          } else {
+            this.logger.warn(`PTY no longer active for second Enter`);
           }
-        }, 150);
+        }, 200);
       } else {
         // Regular input - just send as-is
         session.ptyProcess.write(input);
