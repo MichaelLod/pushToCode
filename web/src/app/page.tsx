@@ -18,6 +18,8 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const initializedSessionsRef = useRef<Set<string>>(new Set());
   const [sessionReinitTrigger, setSessionReinitTrigger] = useState(0);
+  const sessionInitInProgressRef = useRef<string | null>(null);
+  const lastInitTimeRef = useRef<number>(0);
 
   // Convert HTTP URL to WebSocket URL if needed
   const wsUrl = settings.serverUrl
@@ -97,6 +99,9 @@ export default function Home() {
 
   // Track previous connection status for reconnect detection
   const prevStatusRef = useRef<string>("disconnected");
+  // Track when we last disconnected (to distinguish real reconnects from Strict Mode)
+  const lastDisconnectTimeRef = useRef<number>(0);
+  const STRICT_MODE_RECONNECT_THRESHOLD = 500; // ms - Strict Mode reconnects faster than this
 
   // WebSocket connection
   const { status, send, isConnected } = useWebSocket({
@@ -105,11 +110,26 @@ export default function Home() {
     autoConnect: !!settings.serverUrl && !!settings.apiKey,
     onMessage: handleServerMessage,
     onStatusChange: (newStatus) => {
-      console.log("WebSocket status:", newStatus);
-      // Clear initialized sessions on reconnect (was disconnected, now connected)
-      if (newStatus === "connected" && prevStatusRef.current !== "connected") {
-        console.log("WebSocket reconnected, clearing session state");
-        initializedSessionsRef.current.clear();
+      const now = Date.now();
+      const timeSinceDisconnect = now - lastDisconnectTimeRef.current;
+      console.log("WebSocket status:", newStatus, "prev:", prevStatusRef.current, "timeSinceDisconnect:", timeSinceDisconnect);
+
+      if (newStatus === "disconnected" && prevStatusRef.current === "connected") {
+        // Track disconnect time
+        lastDisconnectTimeRef.current = now;
+      }
+
+      // Only clear sessions on REAL reconnect (not React Strict Mode remount)
+      // Strict Mode reconnects happen within ~100ms, real reconnects take longer
+      if (newStatus === "connected" && prevStatusRef.current === "disconnected") {
+        if (lastDisconnectTimeRef.current > 0 && timeSinceDisconnect > STRICT_MODE_RECONNECT_THRESHOLD) {
+          // This is a real reconnect after a real disconnect (not Strict Mode)
+          console.log("WebSocket reconnected after real disconnect, clearing session state");
+          initializedSessionsRef.current.clear();
+          lastInitTimeRef.current = 0; // Reset debounce timer
+        } else {
+          console.log("Ignoring fast reconnect (likely Strict Mode)");
+        }
       }
       prevStatusRef.current = newStatus;
     },
@@ -124,21 +144,55 @@ export default function Home() {
 
   // Start interactive session on backend when connected
   // Also re-initializes when sessionReinitTrigger changes (after session expiry)
+  // Debounced to prevent duplicate initialization on mobile (min 2s between inits)
   useEffect(() => {
-    if (isConnected && currentSession && !initializedSessionsRef.current.has(currentSession.id)) {
-      console.log("Starting interactive session:", currentSession.id);
+    if (!isConnected || !currentSession) return;
 
-      // Clear terminal before re-initializing to avoid duplicate output on reconnect
-      terminalClearRef.current?.();
+    const sessionId = currentSession.id;
+    const now = Date.now();
+    const timeSinceLastInit = now - lastInitTimeRef.current;
+    const MIN_INIT_INTERVAL = 2000; // 2 seconds minimum between initializations
 
-      initializedSessionsRef.current.add(currentSession.id);
-
-      send({
-        type: "start_interactive",
-        sessionId: currentSession.id,
-        projectPath: currentSession.repoPath || "/repos", // Default to /repos
-      });
+    // Skip if already initialized
+    if (initializedSessionsRef.current.has(sessionId)) {
+      return;
     }
+
+    // Skip if init is in progress for this session
+    if (sessionInitInProgressRef.current === sessionId) {
+      console.log("Session init already in progress, skipping:", sessionId);
+      return;
+    }
+
+    // Debounce: skip if initialized too recently (prevents rapid reconnect duplicates)
+    if (timeSinceLastInit < MIN_INIT_INTERVAL) {
+      console.log("Session init debounced, too soon:", timeSinceLastInit, "ms since last init");
+      return;
+    }
+
+    console.log("Starting interactive session:", sessionId);
+
+    // Mark as in progress and update last init time
+    sessionInitInProgressRef.current = sessionId;
+    lastInitTimeRef.current = now;
+
+    // Clear terminal before re-initializing to avoid duplicate output on reconnect
+    terminalClearRef.current?.();
+
+    initializedSessionsRef.current.add(sessionId);
+
+    send({
+      type: "start_interactive",
+      sessionId: sessionId,
+      projectPath: currentSession.repoPath || "/repos", // Default to /repos
+    });
+
+    // Clear in-progress flag after a short delay
+    setTimeout(() => {
+      if (sessionInitInProgressRef.current === sessionId) {
+        sessionInitInProgressRef.current = null;
+      }
+    }, 1000);
   }, [isConnected, currentSession, send, sessionReinitTrigger]);
 
   // Helper to convert file to base64
