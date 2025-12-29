@@ -111,35 +111,7 @@ export function InputBar({
 
         {/* Main input row */}
         <div className="flex items-end gap-2">
-          {/* Keyboard toggle button */}
-          <button
-            onClick={() => setShowKeyboard(!showKeyboard)}
-            disabled={disabled}
-            className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg
-                       transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                       ${showKeyboard
-                         ? "bg-accent text-bg-primary"
-                         : "bg-bg-secondary text-text-primary hover:bg-border"
-                       }`}
-            aria-label={showKeyboard ? "Hide keyboard controls" : "Show keyboard controls"}
-            aria-pressed={showKeyboard}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-          </button>
-
-          {/* Text input (auto-grow) */}
+          {/* Text input (auto-grow) - takes most space */}
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
@@ -149,69 +121,82 @@ export function InputBar({
               disabled={disabled}
               placeholder={placeholder}
               rows={1}
-              className="w-full resize-none rounded-lg bg-bg-secondary px-4 py-2.5 text-text-primary
+              className="w-full resize-none rounded-xl bg-bg-secondary px-4 py-3 text-text-primary
                         placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
-                        disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                        disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
               style={{ lineHeight: "24px" }}
               aria-label="Command input"
             />
           </div>
 
-          {/* Mic button (blue) */}
-          <button
-            onClick={() => setShowVoiceRecorder(true)}
-            disabled={disabled}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg
-                      bg-info text-bg-primary hover:opacity-90 transition-opacity
-                      disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: "#7aa2f7" }}
-            aria-label="Start voice recording"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Action buttons group */}
+          <div className="flex items-center gap-1.5">
+            {/* Keyboard toggle button */}
+            <button
+              onClick={() => setShowKeyboard(!showKeyboard)}
+              disabled={disabled}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl
+                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                         ${showKeyboard
+                           ? "bg-accent text-bg-primary"
+                           : "bg-bg-secondary text-text-secondary hover:text-text-primary hover:bg-border"
+                         }`}
+              aria-label={showKeyboard ? "Hide keyboard controls" : "Show keyboard controls"}
+              aria-pressed={showKeyboard}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
-            </svg>
-          </button>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth="1.5" />
+                <path strokeWidth="1.5" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
+              </svg>
+            </button>
 
-          {/* Attach button */}
-          <FileUpload
-            attachments={attachments}
-            onAttachmentsChange={setAttachments}
-          />
-
-          {/* Send button (green) */}
-          <button
-            onClick={handleSubmit}
-            disabled={!canSend}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg
-                      bg-success text-bg-primary font-medium hover:opacity-90 transition-opacity
-                      disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: "#9ece6a" }}
-            aria-label="Send message"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+            {/* Mic button */}
+            <button
+              onClick={() => setShowVoiceRecorder(true)}
+              disabled={disabled}
+              className="w-10 h-10 flex items-center justify-center rounded-xl
+                        bg-bg-secondary text-text-secondary hover:text-accent hover:bg-border
+                        transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Start voice recording"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-          </button>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+            </button>
+
+            {/* Attach button */}
+            <FileUpload
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+            />
+
+            {/* Send button */}
+            <button
+              onClick={handleSubmit}
+              disabled={!canSend}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl
+                        transition-all disabled:opacity-30 disabled:cursor-not-allowed
+                        ${canSend
+                          ? "bg-accent text-bg-primary hover:opacity-90"
+                          : "bg-bg-secondary text-text-secondary"
+                        }`}
+              aria-label="Send message"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
