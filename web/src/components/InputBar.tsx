@@ -121,9 +121,9 @@ export function InputBar({
               disabled={disabled}
               placeholder={placeholder}
               rows={1}
-              className="w-full resize-none rounded-xl bg-bg-secondary px-4 py-3 text-text-primary
+              className="w-full resize-none rounded-xl bg-bg-secondary px-4 py-2 text-text-primary
                         placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
-                        disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
+                        disabled:opacity-50 disabled:cursor-not-allowed h-10"
               style={{ lineHeight: "24px" }}
               aria-label="Command input"
             />
