@@ -210,14 +210,14 @@ export function FileUpload({
       {/* Attachment button with badge */}
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="relative w-10 h-10 flex items-center justify-center rounded-xl
+        className="relative w-9 h-9 flex items-center justify-center rounded-lg
                    bg-bg-secondary text-text-secondary hover:text-text-primary hover:bg-border transition-colors"
         aria-label={`Attach files${attachments.length > 0 ? ` (${attachments.length} attached)` : ""}`}
         aria-expanded={showMenu}
         aria-haspopup="menu"
       >
         <svg
-          className="w-5 h-5"
+          className="w-4 h-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -231,8 +231,8 @@ export function FileUpload({
         </svg>
         {/* Badge */}
         {attachments.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center
-                          bg-accent text-bg-primary text-[10px] font-medium rounded-full px-1">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center
+                          bg-accent text-bg-primary text-[9px] font-medium rounded-full px-0.5">
             {attachments.length}
           </span>
         )}

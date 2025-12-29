@@ -65,20 +65,16 @@ export function InputBar({
 
   return (
     <>
-      <div className="border-t border-border bg-bg-primary p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="border-t border-border bg-bg-primary px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         {/* Keyboard controls row */}
         {showKeyboard && (
-          <div className="mb-3 -mx-4 px-4 py-2 bg-bg-secondary border-b border-border">
-            <KeyboardControls
-              isVisible={true}
-              onToggle={() => setShowKeyboard(false)}
-              onKeyPress={handleKeyboardKeyPress}
-            />
+          <div className="mb-2 -mx-3 px-3 py-1.5 bg-bg-secondary border-b border-border">
+            <KeyboardControls onKeyPress={handleKeyboardKeyPress} />
           </div>
         )}
 
         {/* Main input row */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Text input - takes most space */}
           <input
             ref={inputRef}
@@ -93,19 +89,19 @@ export function InputBar({
             }}
             disabled={disabled}
             placeholder={placeholder}
-            className="flex-1 h-10 rounded-xl bg-bg-secondary px-4 text-text-primary
+            className="flex-1 min-w-0 h-9 rounded-lg bg-bg-secondary px-3 text-sm text-text-primary
                       placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
                       disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Command input"
           />
 
-          {/* Action buttons group */}
-          <div className="flex items-center gap-1.5">
+          {/* Action buttons group - compact on mobile */}
+          <div className="flex items-center gap-1 shrink-0">
             {/* Keyboard toggle button */}
             <button
               onClick={() => setShowKeyboard(!showKeyboard)}
               disabled={disabled}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl
+              className={`w-9 h-9 flex items-center justify-center rounded-lg
                          transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                          ${showKeyboard
                            ? "bg-accent text-bg-primary"
@@ -114,7 +110,7 @@ export function InputBar({
               aria-label={showKeyboard ? "Hide keyboard controls" : "Show keyboard controls"}
               aria-pressed={showKeyboard}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth="1.5" />
                 <path strokeWidth="1.5" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
               </svg>
@@ -124,12 +120,12 @@ export function InputBar({
             <button
               onClick={() => setShowVoiceRecorder(true)}
               disabled={disabled}
-              className="w-10 h-10 flex items-center justify-center rounded-xl
+              className="w-9 h-9 flex items-center justify-center rounded-lg
                         bg-bg-secondary text-text-secondary hover:text-accent hover:bg-border
                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Start voice recording"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -149,7 +145,7 @@ export function InputBar({
             <button
               onClick={handleSubmit}
               disabled={!canSend}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl
+              className={`w-9 h-9 flex items-center justify-center rounded-lg
                         transition-all disabled:opacity-30 disabled:cursor-not-allowed
                         ${canSend
                           ? "bg-accent text-bg-primary hover:opacity-90"
@@ -157,7 +153,7 @@ export function InputBar({
                         }`}
               aria-label="Send message"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

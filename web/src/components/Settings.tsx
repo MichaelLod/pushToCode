@@ -701,14 +701,14 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
               <input
                 id="font-size"
                 type="range"
-                min="8"
+                min="4"
                 max="20"
                 value={settings.fontSize}
                 onChange={(e) => settings.setFontSize(parseInt(e.target.value, 10))}
                 className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-accent"
               />
               <div className="flex justify-between text-xs text-text-secondary mt-1">
-                <span>8px</span>
+                <span>4px</span>
                 <span>20px</span>
               </div>
             </div>
