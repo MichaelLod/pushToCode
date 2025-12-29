@@ -38,6 +38,88 @@ export class ClaudeService implements OnModuleInit {
     await this.verifyCliInstalled();
     // Then check Claude auth status on startup
     await this.checkAuthStatus();
+    // Run startup test to verify PTY input works
+    await this.runStartupTest();
+  }
+
+  private async runStartupTest(): Promise<void> {
+    this.logger.log('=== STARTUP TEST: Testing PTY input with "Say hi" ===');
+
+    return new Promise((resolve) => {
+      const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 30,
+        cwd: '/tmp',
+        env: {
+          ...process.env,
+          TERM: 'xterm-256color',
+          FORCE_COLOR: '1',
+        },
+      });
+
+      this.logger.log(`[STARTUP TEST] PTY spawned with PID: ${ptyProcess.pid}`);
+
+      let isReady = false;
+      let promptSent = false;
+      let responseReceived = false;
+      let fullOutput = '';
+
+      ptyProcess.onData((data: string) => {
+        fullOutput += data;
+        const cleanData = this.stripAnsiAndControl(data);
+        if (cleanData.trim()) {
+          this.logger.log(`[STARTUP TEST] Output: ${cleanData.substring(0, 200)}`);
+        }
+
+        // Detect when Claude is ready for input (shows the input prompt)
+        if (!isReady && (cleanData.includes('bypass permissions') || cleanData.includes('>'))) {
+          isReady = true;
+          this.logger.log('[STARTUP TEST] Claude is ready for input');
+
+          // Wait a moment then send prompt
+          if (!promptSent) {
+            promptSent = true;
+            setTimeout(() => {
+              this.logger.log('[STARTUP TEST] Sending "Say hi" prompt...');
+              // Try simple approach: just type the text and press Enter
+              ptyProcess.write('Say hi\n');
+              this.logger.log('[STARTUP TEST] Prompt sent');
+            }, 1000);
+          }
+        }
+
+        // Detect Claude's response (contains "Hi" or similar greeting)
+        if (promptSent && !responseReceived) {
+          if (cleanData.toLowerCase().includes('hello') ||
+              cleanData.toLowerCase().includes('hi there') ||
+              cleanData.toLowerCase().includes('hey') ||
+              cleanData.includes('Claude')) {
+            responseReceived = true;
+            this.logger.log('[STARTUP TEST] SUCCESS - Got response from Claude!');
+          }
+        }
+      });
+
+      ptyProcess.onExit(({ exitCode }) => {
+        this.logger.log(`[STARTUP TEST] PTY exited with code ${exitCode}`);
+        if (!responseReceived) {
+          this.logger.warn('[STARTUP TEST] FAILED - No response received');
+          this.logger.log(`[STARTUP TEST] Full output was: ${fullOutput.substring(0, 1000)}`);
+        }
+        resolve();
+      });
+
+      // Kill after 30 seconds regardless
+      setTimeout(() => {
+        if (!responseReceived) {
+          this.logger.warn('[STARTUP TEST] Timeout - killing PTY');
+          this.logger.log(`[STARTUP TEST] Full output: ${this.stripAnsiAndControl(fullOutput).substring(0, 2000)}`);
+        }
+        ptyProcess.kill();
+        resolve();
+      }, 30000);
+    });
   }
 
   private async verifyCliInstalled(): Promise<void> {
