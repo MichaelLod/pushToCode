@@ -347,21 +347,9 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
-      // Check if this is a slash command (starts with /)
-      // Claude CLI shows autocomplete for these - we need to dismiss it
-      const trimmedInput = input.replace(/\r$/, ''); // Remove trailing \r for check
-      const isSlashCommand = trimmedInput.startsWith('/');
-
-      if (isSlashCommand) {
-        // For slash commands: type command, ESC to dismiss autocomplete, Enter to execute
-        this.logger.log(`Detected slash command, using ESC sequence`);
-        session.ptyProcess.write(trimmedInput); // Type the command
-        session.ptyProcess.write('\x1b');       // ESC to dismiss autocomplete
-        session.ptyProcess.write('\r');         // Enter to execute
-      } else {
-        // For regular input, just send as-is
-        session.ptyProcess.write(input);
-      }
+      // Just send the input directly - no special handling needed
+      // The CLI should process commands normally
+      session.ptyProcess.write(input);
 
       this.logger.log(`PTY input sent successfully`);
       return true;
@@ -407,22 +395,36 @@ export class ClaudeService implements OnModuleInit {
       return emitter;
     }
 
+    // Use a valid working directory on the server
+    // iOS sends local paths which don't exist on the Railway server
+    const fs = await import('fs');
+    let workingDir = '/tmp';
+    try {
+      if (fs.existsSync(projectPath)) {
+        workingDir = projectPath;
+        this.logger.log(`Using provided project path: ${workingDir}`);
+      } else {
+        this.logger.log(`Project path ${projectPath} doesn't exist, using /tmp`);
+      }
+    } catch (err) {
+      this.logger.warn(`Error checking path ${projectPath}: ${err.message}`);
+    }
+
     // Spawn Claude CLI in interactive mode using PTY
     const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
-      cwd: projectPath,
+      cwd: workingDir,
       env: {
         ...process.env,
         TERM: 'xterm-256color',
         FORCE_COLOR: '1',
-        IS_SANDBOX: '1',  // Auto-accept bypass permissions confirmation
       },
     });
 
     session.ptyProcess = ptyProcess;
-    this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid}`);
+    this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
 
     ptyProcess.onData((data: string) => {
       // Log raw data for debugging (hex representation of first 100 chars)
