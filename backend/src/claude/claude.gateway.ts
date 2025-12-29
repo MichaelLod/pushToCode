@@ -10,7 +10,8 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClaudeService, ClaudeOutput } from './claude.service';
 import { IncomingMessage } from 'http';
-import { ServerMessage } from '../common/interfaces/websocket.interface';
+import { ServerMessage, TerminalBufferData } from '../common/interfaces/websocket.interface';
+import { TerminalBufferSnapshot } from './terminal-buffer.service';
 
 // Extended WebSocket type with custom properties
 interface AuthenticatedWebSocket extends WebSocket {
@@ -458,7 +459,17 @@ export class ClaudeGateway
 
       const emitter = await this.claudeService.startInteractiveSession(sessionId, projectPath);
 
-      // Stream PTY output to client
+      // Stream terminal buffer snapshots to client (new server-side rendering approach)
+      // This sends the complete terminal state instead of raw output chunks
+      emitter.on('terminal_buffer', (snapshot: TerminalBufferSnapshot) => {
+        this.sendMessage(client, {
+          type: 'terminal_buffer',
+          sessionId,
+          buffer: snapshot as TerminalBufferData,
+        });
+      });
+
+      // Legacy: Stream raw PTY output to client (for backwards compatibility)
       emitter.on('pty_output', (output: string) => {
         if (output) {
           this.sendMessage(client, {

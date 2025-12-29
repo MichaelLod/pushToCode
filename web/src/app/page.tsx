@@ -10,7 +10,7 @@ import { Settings } from "@/components/Settings";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
-import { ServerMessage } from "@/types/messages";
+import { ServerMessage, TerminalBufferMessage } from "@/types/messages";
 import { InstallBanner } from "@/components/InstallBanner";
 import {
   appendTerminalOutput,
@@ -45,6 +45,8 @@ export default function Home() {
   const terminalClearRef = useRef<(() => void) | null>(null);
   // Track which sessions have had their output restored
   const restoredSessionsRef = useRef<Set<string>>(new Set());
+  // Track if we're using server-side buffer mode (disables legacy pty_output handling)
+  const useBufferModeRef = useRef<boolean>(false);
 
   // Handle messages from server
   const handleServerMessage = useCallback((message: ServerMessage) => {
@@ -59,11 +61,30 @@ export default function Home() {
         }
         break;
       case "pty_output":
-        // Write PTY output to terminal and persist
-        if (message.content) {
+        // Legacy: Write raw PTY output to terminal (only if not using buffer mode)
+        // When server supports buffer mode, this is disabled to prevent duplicate rendering
+        if (!useBufferModeRef.current && message.content) {
           terminalWriteRef.current?.(message.content);
           if (message.sessionId) {
             appendTerminalOutput(message.sessionId, message.content);
+          }
+        }
+        break;
+      case "terminal_buffer":
+        // Server-side rendered terminal buffer - render the complete terminal state
+        // This fixes the multiline spam issue by receiving complete terminal snapshots
+        useBufferModeRef.current = true; // Switch to buffer mode, disable pty_output handling
+        if ((message as TerminalBufferMessage).buffer) {
+          const buffer = (message as TerminalBufferMessage).buffer;
+          // Clear terminal and render the complete buffer
+          terminalClearRef.current?.();
+          // Write all lines from the buffer
+          const content = buffer.lines.join("\n");
+          terminalWriteRef.current?.(content);
+          // Persist the buffer content
+          if (message.sessionId) {
+            // Store the complete buffer (replace, not append)
+            localStorage.setItem(`terminal_output_${message.sessionId}`, content);
           }
         }
         break;
@@ -188,6 +209,9 @@ export default function Home() {
     // Mark as in progress and update last init time
     sessionInitInProgressRef.current = sessionId;
     lastInitTimeRef.current = now;
+
+    // Reset buffer mode for new session (will be set to true when first buffer arrives)
+    useBufferModeRef.current = false;
 
     // Note: We no longer clear the terminal here because:
     // 1. Terminal output is now persisted to localStorage

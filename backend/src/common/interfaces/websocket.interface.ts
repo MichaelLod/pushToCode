@@ -1,6 +1,15 @@
 export type OutputType = 'text' | 'code_block' | 'thinking' | 'file_change';
 export type SessionStatus = 'idle' | 'running' | 'stopped';
 
+// Terminal buffer snapshot for server-side rendering
+export interface TerminalBufferData {
+  lines: string[];
+  cursorX: number;
+  cursorY: number;
+  cols: number;
+  rows: number;
+}
+
 // Client -> Server Messages
 export interface InitSessionMessage {
   type: 'init_session';
@@ -56,9 +65,17 @@ export interface AuthRequiredMessage {
   message: string;
 }
 
+// New: Terminal buffer sync message (server-side rendered terminal state)
+export interface TerminalBufferMessage {
+  type: 'terminal_buffer';
+  sessionId: string;
+  buffer: TerminalBufferData;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
   | OutputMessage
   | ErrorMessage
-  | AuthRequiredMessage;
+  | AuthRequiredMessage
+  | TerminalBufferMessage;

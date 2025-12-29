@@ -6,6 +6,7 @@ import { OutputType } from '../common/interfaces/websocket.interface';
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TerminalBufferService, TerminalBufferSnapshot } from './terminal-buffer.service';
 
 export interface ClaudeOutput {
   type: 'output' | 'error' | 'exit' | 'auth_required';
@@ -51,7 +52,10 @@ export class ClaudeService implements OnModuleInit {
   private readonly SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
   private persistedSessions: Map<string, PersistedSessionMetadata> = new Map();
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private terminalBufferService: TerminalBufferService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     // First verify CLI is installed and working
@@ -548,11 +552,21 @@ export class ClaudeService implements OnModuleInit {
     session.ptyProcess = ptyProcess;
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}, args: ${cliArgs.join(' ')}`);
 
-    ptyProcess.onData((data: string) => {
-      // Filter processing spam before sending
-      const filteredData = this.filterProcessingSpam(data, session);
+    // Create a server-side terminal buffer for this session
+    this.terminalBufferService.createBuffer(sessionId, 120, 30);
 
-      // Send PTY output if not filtered out
+    ptyProcess.onData((data: string) => {
+      // Write all PTY output to the server-side terminal buffer
+      this.terminalBufferService.write(sessionId, data);
+
+      // Send throttled buffer snapshots instead of raw output
+      // This prevents the multiline spam issue by only sending complete terminal state
+      this.terminalBufferService.getSnapshotThrottled(sessionId, (snapshot: TerminalBufferSnapshot) => {
+        emitter.emit('terminal_buffer', snapshot);
+      });
+
+      // Also emit raw output for clients that don't support buffer sync yet (legacy support)
+      const filteredData = this.filterProcessingSpam(data, session);
       if (filteredData) {
         emitter.emit('pty_output', filteredData);
       }
@@ -582,6 +596,8 @@ export class ClaudeService implements OnModuleInit {
 
     ptyProcess.onExit(({ exitCode }) => {
       session.ptyProcess = undefined;
+      // Clean up the terminal buffer
+      this.terminalBufferService.destroyBuffer(sessionId);
       emitter.emit('output', {
         type: 'exit',
         code: exitCode,
@@ -1069,6 +1085,9 @@ export class ClaudeService implements OnModuleInit {
       session.ptyProcess = undefined;
     }
 
+    // Clean up terminal buffer
+    this.terminalBufferService.destroyBuffer(sessionId);
+
     if (session.process && !session.process.killed) {
       this.logger.log(`Stopping session ${sessionId}`);
       session.process.kill('SIGTERM');
@@ -1095,6 +1114,11 @@ export class ClaudeService implements OnModuleInit {
       if (session.process && !session.process.killed) {
         session.process.kill('SIGKILL');
       }
+      if (session.ptyProcess) {
+        session.ptyProcess.kill();
+      }
+      // Clean up terminal buffer
+      this.terminalBufferService.destroyBuffer(sessionId);
       session.emitter.removeAllListeners();
       this.sessions.delete(sessionId);
       this.logger.log(`Session ${sessionId} destroyed`);

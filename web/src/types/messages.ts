@@ -102,9 +102,19 @@ export type ServerMessageType =
   | "auth_success"
   | "auth_failed"
   | "pty_output"
+  | "terminal_buffer"
   | "login_interactive"
   | "interactive_started"
   | "file_uploaded";
+
+// Terminal buffer data from server-side rendering
+export interface TerminalBufferData {
+  lines: string[];
+  cursorX: number;
+  cursorY: number;
+  cols: number;
+  rows: number;
+}
 
 export interface SessionReadyMessage {
   type: "session_ready";
@@ -180,6 +190,13 @@ export interface FileUploadedMessage {
   filename: string;
 }
 
+// Server-side rendered terminal buffer snapshot
+export interface TerminalBufferMessage {
+  type: "terminal_buffer";
+  sessionId: string;
+  buffer: TerminalBufferData;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
@@ -191,6 +208,7 @@ export type ServerMessage =
   | AuthSuccessMessage
   | AuthFailedMessage
   | PtyOutputMessage
+  | TerminalBufferMessage
   | LoginInteractiveMessage
   | InteractiveStartedMessage
   | FileUploadedMessage;
@@ -234,4 +252,8 @@ export function isAuthSuccessMessage(msg: ServerMessage): msg is AuthSuccessMess
 
 export function isAuthFailedMessage(msg: ServerMessage): msg is AuthFailedMessage {
   return msg.type === "auth_failed";
+}
+
+export function isTerminalBufferMessage(msg: ServerMessage): msg is TerminalBufferMessage {
+  return msg.type === "terminal_buffer";
 }
