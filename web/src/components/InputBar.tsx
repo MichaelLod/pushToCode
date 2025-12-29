@@ -1,46 +1,34 @@
 "use client";
 
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState } from "react";
 import { FileUpload, FileAttachment } from "./FileUpload";
 import { KeyboardControls } from "./KeyboardControls";
 import { VoiceRecorder } from "./VoiceRecorder";
 
 export interface InputBarProps {
-  onSubmit: (text: string, attachments: FileAttachment[]) => void;
   onKeyPress?: (key: string) => void;
+  onTranscription?: (text: string) => void;
+  onFileUpload?: (attachments: FileAttachment[]) => void;
   disabled?: boolean;
-  placeholder?: string;
   serverUrl?: string;
   apiKey?: string;
 }
 
 /**
- * Main input bar component
- * Layout: [KeyboardToggle] [TextField (auto-grow 1-5 lines)] [Mic] [Attach] [Send]
+ * Floating toolbar with action buttons only (no text input)
+ * Layout: [KeyboardToggle] [Mic] [Attach]
  */
 export function InputBar({
-  onSubmit,
   onKeyPress,
+  onTranscription,
+  onFileUpload,
   disabled = false,
-  placeholder = "Enter command...",
   serverUrl,
   apiKey,
 }: InputBarProps) {
-  const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Handle submit
-  const handleSubmit = useCallback(() => {
-    const trimmedText = text.trim();
-    if (!trimmedText && attachments.length === 0) return;
-
-    onSubmit(trimmedText, attachments);
-    setText("");
-    setAttachments([]);
-  }, [text, attachments, onSubmit]);
 
   // Handle keyboard control key press
   const handleKeyboardKeyPress = useCallback(
@@ -50,18 +38,20 @@ export function InputBar({
     [onKeyPress]
   );
 
-  // Handle voice transcription
+  // Handle voice transcription - send directly to terminal
   const handleTranscription = useCallback((transcribedText: string) => {
-    setText((prev) => {
-      const newText = prev ? `${prev} ${transcribedText}` : transcribedText;
-      return newText;
-    });
-    // Focus input after transcription
-    inputRef.current?.focus();
-  }, []);
+    onTranscription?.(transcribedText);
+  }, [onTranscription]);
 
-  // Check if send should be enabled
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled;
+  // Handle attachments change
+  const handleAttachmentsChange = useCallback((newAttachments: FileAttachment[]) => {
+    setAttachments(newAttachments);
+    if (newAttachments.length > 0) {
+      onFileUpload?.(newAttachments);
+      // Clear attachments after triggering upload
+      setTimeout(() => setAttachments([]), 100);
+    }
+  }, [onFileUpload]);
 
   return (
     <>
@@ -73,8 +63,8 @@ export function InputBar({
           </div>
         )}
 
-        {/* Action buttons row - above input for better tap targets */}
-        <div className="flex items-center justify-center gap-3 mb-2 py-1">
+        {/* Action buttons - centered */}
+        <div className="flex items-center justify-center gap-3">
           {/* Keyboard toggle button */}
           <button
             onClick={() => setShowKeyboard(!showKeyboard)}
@@ -117,53 +107,8 @@ export function InputBar({
           {/* Attach button */}
           <FileUpload
             attachments={attachments}
-            onAttachmentsChange={setAttachments}
+            onAttachmentsChange={handleAttachmentsChange}
           />
-        </div>
-
-        {/* Input row with send button */}
-        <div className="flex items-center gap-2">
-          {/* Text input */}
-          <input
-            ref={inputRef}
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            disabled={disabled}
-            placeholder={placeholder}
-            className="flex-1 min-w-0 h-11 rounded-xl bg-bg-secondary px-4 text-sm text-text-primary
-                      placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
-                      disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Command input"
-          />
-
-          {/* Send button */}
-          <button
-            onClick={handleSubmit}
-            disabled={!canSend}
-            className={`w-11 h-11 flex items-center justify-center rounded-xl
-                      transition-all disabled:opacity-30 disabled:cursor-not-allowed
-                      ${canSend
-                        ? "bg-accent text-bg-primary hover:opacity-90"
-                        : "bg-bg-secondary text-text-secondary"
-                      }`}
-            aria-label="Send message"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-          </button>
         </div>
       </div>
 

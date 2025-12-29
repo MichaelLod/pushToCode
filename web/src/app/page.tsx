@@ -33,8 +33,9 @@ export default function Home() {
     removeSession,
   } = useSessions();
 
-  // Terminal for current session - need to get write function
+  // Terminal for current session - need to get write and focus functions
   const terminalWriteRef = useRef<((data: string) => void) | null>(null);
+  const terminalFocusRef = useRef<(() => void) | null>(null);
 
   // Handle messages from server
   const handleServerMessage = useCallback((message: ServerMessage) => {
@@ -135,26 +136,6 @@ export default function Home() {
     }
   }, [isConnected, currentSession, send, sessionReinitTrigger]);
 
-  // Handle user input from InputBar
-  const handleSendMessage = useCallback(
-    (text: string) => {
-      if (!currentSession || !isConnected) return;
-
-      // Send text first, then Enter separately (Claude CLI needs separate keypress)
-      send({
-        type: "pty_input",
-        sessionId: currentSession.id,
-        data: text,
-      });
-      send({
-        type: "pty_input",
-        sessionId: currentSession.id,
-        data: "\r",
-      });
-    },
-    [currentSession, isConnected, send]
-  );
-
   // Helper to convert file to base64
   const fileToBase64 = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -170,12 +151,35 @@ export default function Home() {
     });
   }, []);
 
-  // Handle submit from InputBar (text + attachments)
-  const handleSubmit = useCallback(
-    async (text: string, attachments: FileAttachment[]) => {
+  // Handle voice transcription - send to terminal and press enter
+  const handleTranscription = useCallback(
+    (text: string) => {
       if (!currentSession || !isConnected) return;
 
-      // Upload files first
+      // Send transcribed text then Enter
+      send({
+        type: "pty_input",
+        sessionId: currentSession.id,
+        data: text,
+      });
+      send({
+        type: "pty_input",
+        sessionId: currentSession.id,
+        data: "\r",
+      });
+
+      // Refocus terminal after transcription
+      terminalFocusRef.current?.();
+    },
+    [currentSession, isConnected, send]
+  );
+
+  // Handle file uploads from InputBar
+  const handleFileUpload = useCallback(
+    async (attachments: FileAttachment[]) => {
+      if (!currentSession || !isConnected) return;
+
+      // Upload files
       const uploadedPaths: string[] = [];
       for (const attachment of attachments) {
         try {
@@ -187,26 +191,31 @@ export default function Home() {
             mimeType: attachment.file.type,
             data: base64Data,
           });
-          // We'll include a reference to the file in the message
-          // The actual path will be logged when file_uploaded is received
           uploadedPaths.push(attachment.file.name);
         } catch (err) {
           console.error("Failed to upload file:", err);
         }
       }
 
-      // Build message with file references
-      let message = text.trim();
+      // Send file reference message to terminal
       if (uploadedPaths.length > 0) {
         const fileNote = `[Attached: ${uploadedPaths.join(", ")} - files saved to /tmp/pushtocode-uploads/]`;
-        message = message ? `${message}\n\n${fileNote}` : fileNote;
+        send({
+          type: "pty_input",
+          sessionId: currentSession.id,
+          data: fileNote,
+        });
+        send({
+          type: "pty_input",
+          sessionId: currentSession.id,
+          data: "\r",
+        });
       }
 
-      if (message) {
-        handleSendMessage(message);
-      }
+      // Refocus terminal
+      terminalFocusRef.current?.();
     },
-    [currentSession, isConnected, send, fileToBase64, handleSendMessage]
+    [currentSession, isConnected, send, fileToBase64]
   );
 
   // Handle terminal input (keystrokes)
@@ -305,6 +314,9 @@ export default function Home() {
                 onInput={handleTerminalInput}
                 onReady={(terminal) => {
                   terminalWriteRef.current = terminal.write;
+                  terminalFocusRef.current = terminal.focus;
+                  // Auto-focus terminal when ready
+                  terminal.focus();
                 }}
                 fontSize={settings.fontSize}
                 fontFamily={settings.fontFamily}
@@ -316,23 +328,15 @@ export default function Home() {
             </div>
           )}
 
-          {/* Input area */}
-          <div className="border-t border-border">
-            <InputBar
-              onSubmit={handleSubmit}
-              onKeyPress={handleTerminalInput}
-              disabled={!isConnected || !currentSession}
-              placeholder={
-                !isConnected
-                  ? "Connecting..."
-                  : !currentSession
-                  ? "No session"
-                  : "Enter command..."
-              }
-              serverUrl={settings.serverUrl}
-              apiKey={settings.apiKey}
-            />
-          </div>
+          {/* Toolbar with action buttons */}
+          <InputBar
+            onKeyPress={handleTerminalInput}
+            onTranscription={handleTranscription}
+            onFileUpload={handleFileUpload}
+            disabled={!isConnected || !currentSession}
+            serverUrl={settings.serverUrl}
+            apiKey={settings.apiKey}
+          />
         </div>
       </main>
 
