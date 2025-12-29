@@ -49,9 +49,11 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
   const [availableRepos, setAvailableRepos] = useState<{ name: string; path: string; id: string }[]>([]);
 
   // Clone repo state
-  const [cloneUrl, setCloneUrl] = useState("");
   const [cloneStatus, setCloneStatus] = useState<"idle" | "cloning" | "success" | "error">("idle");
   const [cloneMessage, setCloneMessage] = useState("");
+  const [githubRepos, setGithubRepos] = useState<{ name: string; full_name: string; clone_url: string; description: string | null; private: boolean }[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
 
   // Focus close button on mount
   useEffect(() => {
@@ -95,25 +97,43 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     fetchRepos();
   }, [fetchRepos]);
 
-  // Clone a repository
-  const handleCloneRepo = useCallback(async () => {
-    if (!cloneUrl.trim()) return;
+  // Fetch available GitHub repos
+  const fetchGithubRepos = useCallback(async () => {
+    setGithubLoading(true);
+    setGithubError(null);
+    try {
+      const client = getClient();
+      const repos = await client.getAvailableGitHubRepos();
+      setGithubRepos(repos);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : "Failed to fetch repos");
+      setGithubRepos([]);
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [getClient]);
 
+  // Fetch GitHub repos on mount
+  useEffect(() => {
+    fetchGithubRepos();
+  }, [fetchGithubRepos]);
+
+  // Clone a repository
+  const handleCloneRepo = useCallback(async (url: string, name: string) => {
     setCloneStatus("cloning");
-    setCloneMessage("");
+    setCloneMessage(`Cloning ${name}...`);
 
     try {
       const client = getClient();
-      const repo = await client.cloneRepo({ url: cloneUrl.trim() });
+      const repo = await client.cloneRepo({ url });
       setCloneStatus("success");
       setCloneMessage(`Cloned ${repo.name} successfully`);
-      setCloneUrl("");
-      fetchRepos(); // Refresh the list
+      fetchRepos(); // Refresh the cloned list
     } catch (err) {
       setCloneStatus("error");
       setCloneMessage(err instanceof Error ? err.message : "Clone failed");
     }
-  }, [cloneUrl, getClient, fetchRepos]);
+  }, [getClient, fetchRepos]);
 
   // Delete a repository
   const handleDeleteRepo = useCallback(async (id: string, name: string) => {
@@ -476,54 +496,103 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
               Repositories
             </h3>
 
-            {/* Clone URL Input */}
+            {/* Clone Status Message */}
+            {cloneStatus !== "idle" && (
+              <div className={`mb-4 p-3 rounded-lg ${cloneStatus === "success" ? "bg-success/10" : cloneStatus === "error" ? "bg-error/10" : "bg-bg-primary"}`}>
+                <p className={`text-sm flex items-center gap-2 ${cloneStatus === "success" ? "text-success" : cloneStatus === "error" ? "text-error" : "text-text-primary"}`}>
+                  {cloneStatus === "cloning" && (
+                    <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  )}
+                  {cloneStatus === "success" && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                  {cloneStatus === "error" && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                  )}
+                  {cloneMessage}
+                </p>
+              </div>
+            )}
+
+            {/* Available GitHub Repos */}
             <div className="mb-4">
-              <label
-                htmlFor="clone-url"
-                className="block text-sm font-medium text-text-primary mb-2"
-              >
-                Clone from Git URL
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="clone-url"
-                  type="url"
-                  value={cloneUrl}
-                  onChange={(e) => {
-                    setCloneUrl(e.target.value);
-                    setCloneStatus("idle");
-                  }}
-                  placeholder="https://github.com/user/repo.git"
-                  className="flex-1 px-4 py-3 rounded-lg bg-bg-primary text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCloneRepo();
-                  }}
-                />
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Available from GitHub
+                </label>
                 <button
-                  onClick={handleCloneRepo}
-                  disabled={cloneStatus === "cloning" || !cloneUrl.trim()}
-                  className="px-4 py-2 rounded-lg bg-accent text-bg-primary font-medium hover:opacity-90 transition-opacity disabled:opacity-50 min-h-[44px]"
+                  onClick={fetchGithubRepos}
+                  disabled={githubLoading}
+                  className="text-xs text-accent hover:underline disabled:opacity-50"
                 >
-                  {cloneStatus === "cloning" ? "Cloning..." : "Clone"}
+                  {githubLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
-              {cloneStatus === "success" && (
-                <p className="mt-2 text-sm text-success flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  {cloneMessage}
-                </p>
-              )}
-              {cloneStatus === "error" && (
-                <p className="mt-2 text-sm text-error flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="15" y1="9" x2="9" y2="15" />
-                    <line x1="9" y1="9" x2="15" y2="15" />
-                  </svg>
-                  {cloneMessage}
-                </p>
+
+              {githubError ? (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-error">{githubError}</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    Make sure GITHUB_TOKEN is configured on the server
+                  </p>
+                </div>
+              ) : githubLoading ? (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-text-secondary">Loading repositories...</p>
+                </div>
+              ) : githubRepos.length > 0 ? (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {githubRepos
+                    .filter(repo => !availableRepos.some(r => r.name === repo.name))
+                    .map((repo) => (
+                    <div
+                      key={repo.full_name}
+                      className="flex items-center justify-between p-3 rounded-lg bg-bg-primary hover:bg-border/50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-text-primary truncate">
+                            {repo.name}
+                          </p>
+                          {repo.private && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-accent/20 text-accent">
+                              Private
+                            </span>
+                          )}
+                        </div>
+                        {repo.description && (
+                          <p className="text-xs text-text-secondary truncate mt-0.5">
+                            {repo.description}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleCloneRepo(repo.clone_url, repo.name)}
+                        disabled={cloneStatus === "cloning"}
+                        className="px-3 py-1.5 rounded-lg bg-accent text-bg-primary text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
+                      >
+                        Clone
+                      </button>
+                    </div>
+                  ))}
+                  {githubRepos.filter(repo => !availableRepos.some(r => r.name === repo.name)).length === 0 && (
+                    <div className="p-4 rounded-lg bg-bg-primary text-center">
+                      <p className="text-sm text-text-secondary">All repositories are already cloned</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-text-secondary">No repositories available</p>
+                </div>
               )}
             </div>
 

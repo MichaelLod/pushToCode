@@ -11,6 +11,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
 import { ServerMessage } from "@/types/messages";
+import { InstallBanner } from "@/components/InstallBanner";
 
 export default function Home() {
   const settings = useSettings();
