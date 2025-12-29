@@ -25,8 +25,30 @@ export interface UseVoiceRecorderResult {
 }
 
 /**
+ * Get the best supported audio mimeType for the current browser
+ */
+function getSupportedMimeType(): string {
+  const mimeTypes = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/wav",
+    "", // Empty string = browser default
+  ];
+
+  for (const mimeType of mimeTypes) {
+    if (mimeType === "" || MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  return "";
+}
+
+/**
  * Hook for voice recording with Web Audio waveform visualization
- * Uses MediaRecorder API with audio/webm format
+ * Uses MediaRecorder API with browser-compatible audio format
  */
 export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecorderResult {
   const [state, setState] = useState<VoiceRecorderState>({
@@ -144,19 +166,22 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
         audioData: null,
       });
 
-      // Request microphone access
+      // Request microphone access - use simple constraints for better mobile compatibility
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000,
-        },
+        audio: true,
       });
       streamRef.current = stream;
 
       // Set up Web Audio for visualization
-      const audioContext = new AudioContext();
+      // Use webkitAudioContext for older Safari
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
+
+      // Resume audio context if suspended (required for mobile browsers)
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
 
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -165,11 +190,17 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      // Set up MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+      // Set up MediaRecorder with browser-compatible mimeType
+      const mimeType = getSupportedMimeType();
+      const recorderOptions: MediaRecorderOptions = {};
+      if (mimeType) {
+        recorderOptions.mimeType = mimeType;
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
+
+      console.log("[VoiceRecorder] Using mimeType:", mimeType || "browser default");
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -225,6 +256,9 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
         return;
       }
 
+      // Store mimeType for blob creation
+      const recorderMimeType = mediaRecorder.mimeType || "audio/webm";
+
       mediaRecorder.onstop = async () => {
         setState((prev) => ({
           ...prev,
@@ -233,10 +267,25 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
         }));
 
         try {
-          const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+          const audioBlob = new Blob(chunksRef.current, { type: recorderMimeType });
+          console.log("[VoiceRecorder] Created blob:", recorderMimeType, audioBlob.size, "bytes");
+
+          // Determine file extension from mimeType
+          const extMap: Record<string, string> = {
+            "audio/webm": "webm",
+            "audio/webm;codecs=opus": "webm",
+            "audio/mp4": "m4a",
+            "audio/ogg": "ogg",
+            "audio/ogg;codecs=opus": "ogg",
+            "audio/wav": "wav",
+            "audio/x-wav": "wav",
+          };
+          const ext = extMap[recorderMimeType] || "webm";
+          const filename = `audio.${ext}`;
+
           const baseUrl = options?.serverUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
           const apiClient = getApiClient({ baseUrl, apiKey: options?.apiKey });
-          const response = await apiClient.transcribe(audioBlob);
+          const response = await apiClient.transcribe(audioBlob, filename);
 
           setState((prev) => ({
             ...prev,
