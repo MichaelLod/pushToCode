@@ -1,6 +1,6 @@
 # pushToCode
 
-A voice-first iOS coding app that lets you interact with Claude CLI using voice commands.
+A voice-first iOS coding app that lets you interact with Claude CLI using voice commands. s
 
 ## Project Structure
 
