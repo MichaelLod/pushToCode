@@ -17,6 +17,7 @@ import {
   removeSession as removeStoredSession,
   getCurrentSessionId,
   setCurrentSessionId as storeCurrentSessionId,
+  clearTerminalOutput,
 } from "@/lib/storage";
 
 export interface SessionWithTerminal extends Session {
@@ -159,6 +160,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsReturn
 
       // Persist removal to localStorage
       removeStoredSession(sessionId);
+      // Also clear persisted terminal output
+      clearTerminalOutput(sessionId);
 
       setOutputBySession((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars

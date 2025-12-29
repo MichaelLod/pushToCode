@@ -62,7 +62,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         apiKey,
         reconnect: true,
         reconnectInterval: 1000,
-        maxReconnectAttempts: 10,
+        maxReconnectAttempts: Infinity, // Never give up reconnecting
         pingInterval: 30000,
         onStatusChange: (newStatus) => {
           setStatus(newStatus);

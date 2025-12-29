@@ -27,9 +27,12 @@ export interface WebSocketClientOptions {
 const DEFAULT_OPTIONS: Required<Omit<WebSocketClientOptions, "url" | "apiKey" | "onStatusChange" | "onMessage" | "onError">> = {
   reconnect: true,
   reconnectInterval: 1000,
-  maxReconnectAttempts: 10,
+  maxReconnectAttempts: Infinity, // Never give up reconnecting
   pingInterval: 30000,
 };
+
+// Maximum delay between reconnect attempts (30 seconds)
+const MAX_RECONNECT_DELAY = 30000;
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -193,10 +196,15 @@ export class WebSocketClient {
       return;
     }
 
-    const delay = this.options.reconnectInterval * Math.pow(2, this.reconnectAttempts);
+    // Exponential backoff with a max delay cap
+    const baseDelay = this.options.reconnectInterval * Math.pow(2, Math.min(this.reconnectAttempts, 5));
+    const delay = Math.min(baseDelay, MAX_RECONNECT_DELAY);
     this.reconnectAttempts++;
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts})`);
+    const attemptsDisplay = this.options.maxReconnectAttempts === Infinity
+      ? `attempt ${this.reconnectAttempts}`
+      : `attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts}`;
+    console.log(`Reconnecting in ${delay}ms (${attemptsDisplay})`);
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect();

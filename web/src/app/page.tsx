@@ -12,6 +12,10 @@ import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
 import { ServerMessage } from "@/types/messages";
 import { InstallBanner } from "@/components/InstallBanner";
+import {
+  appendTerminalOutput,
+  getTerminalOutput,
+} from "@/lib/storage";
 
 export default function Home() {
   const settings = useSettings();
@@ -39,20 +43,28 @@ export default function Home() {
   const terminalWriteRef = useRef<((data: string) => void) | null>(null);
   const terminalFocusRef = useRef<(() => void) | null>(null);
   const terminalClearRef = useRef<(() => void) | null>(null);
+  // Track which sessions have had their output restored
+  const restoredSessionsRef = useRef<Set<string>>(new Set());
 
   // Handle messages from server
   const handleServerMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
       case "output":
-        // Write output to terminal
+        // Write output to terminal and persist
         if (message.content) {
           terminalWriteRef.current?.(message.content);
+          if (message.sessionId) {
+            appendTerminalOutput(message.sessionId, message.content);
+          }
         }
         break;
       case "pty_output":
-        // Write PTY output to terminal
+        // Write PTY output to terminal and persist
         if (message.content) {
           terminalWriteRef.current?.(message.content);
+          if (message.sessionId) {
+            appendTerminalOutput(message.sessionId, message.content);
+          }
         }
         break;
       case "session_ready":
@@ -126,6 +138,7 @@ export default function Home() {
           // This is a real reconnect after a real disconnect (not Strict Mode)
           console.log("WebSocket reconnected after real disconnect, clearing session state");
           initializedSessionsRef.current.clear();
+          restoredSessionsRef.current.clear(); // Allow terminal output to be restored
           lastInitTimeRef.current = 0; // Reset debounce timer
         } else {
           console.log("Ignoring fast reconnect (likely Strict Mode)");
@@ -176,8 +189,10 @@ export default function Home() {
     sessionInitInProgressRef.current = sessionId;
     lastInitTimeRef.current = now;
 
-    // Clear terminal before re-initializing to avoid duplicate output on reconnect
-    terminalClearRef.current?.();
+    // Note: We no longer clear the terminal here because:
+    // 1. Terminal output is now persisted to localStorage
+    // 2. Output is restored when terminal mounts (via restoredSessionsRef)
+    // 3. Backend uses --resume which doesn't replay old output
 
     initializedSessionsRef.current.add(sessionId);
 
@@ -375,6 +390,17 @@ export default function Home() {
                   terminalWriteRef.current = terminal.write;
                   terminalFocusRef.current = terminal.focus;
                   terminalClearRef.current = terminal.clear;
+
+                  // Restore persisted output if not already restored for this session
+                  const sessionId = currentSession.id;
+                  if (!restoredSessionsRef.current.has(sessionId)) {
+                    const savedOutput = getTerminalOutput(sessionId);
+                    if (savedOutput) {
+                      terminal.write(savedOutput);
+                    }
+                    restoredSessionsRef.current.add(sessionId);
+                  }
+
                   // Auto-focus terminal when ready
                   terminal.focus();
                 }}

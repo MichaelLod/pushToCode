@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   REPOS: "pushtocode:repos",
   CURRENT_SESSION: "pushtocode:current_session",
   API_KEY: "pushtocode:api_key",
+  TERMINAL_OUTPUT: "pushtocode:terminal_output",
 } as const;
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -217,6 +218,55 @@ export function removeSession(sessionId: string): boolean {
   const sessions = getSessions();
   const filtered = sessions.filter((s) => s.id !== sessionId);
   return setSessions(filtered);
+}
+
+// ============================================
+// Terminal Output (per session)
+// ============================================
+
+// Max output size per session (100KB to avoid localStorage limits)
+const MAX_OUTPUT_SIZE = 100 * 1024;
+
+interface StoredTerminalOutput {
+  [sessionId: string]: string;
+}
+
+export function getTerminalOutput(sessionId: string): string {
+  const stored = get<StoredTerminalOutput>(STORAGE_KEYS.TERMINAL_OUTPUT, {});
+  return stored[sessionId] ?? "";
+}
+
+export function setTerminalOutput(sessionId: string, output: string): boolean {
+  const stored = get<StoredTerminalOutput>(STORAGE_KEYS.TERMINAL_OUTPUT, {});
+
+  // Truncate output if too large (keep the end, which is most recent)
+  let truncatedOutput = output;
+  if (output.length > MAX_OUTPUT_SIZE) {
+    truncatedOutput = output.slice(-MAX_OUTPUT_SIZE);
+    // Find first newline to start at a clean line
+    const firstNewline = truncatedOutput.indexOf('\n');
+    if (firstNewline > 0 && firstNewline < 1000) {
+      truncatedOutput = truncatedOutput.slice(firstNewline + 1);
+    }
+  }
+
+  stored[sessionId] = truncatedOutput;
+  return set(STORAGE_KEYS.TERMINAL_OUTPUT, stored);
+}
+
+export function appendTerminalOutput(sessionId: string, newOutput: string): boolean {
+  const existing = getTerminalOutput(sessionId);
+  return setTerminalOutput(sessionId, existing + newOutput);
+}
+
+export function clearTerminalOutput(sessionId: string): boolean {
+  const stored = get<StoredTerminalOutput>(STORAGE_KEYS.TERMINAL_OUTPUT, {});
+  delete stored[sessionId];
+  return set(STORAGE_KEYS.TERMINAL_OUTPUT, stored);
+}
+
+export function getAllTerminalOutput(): StoredTerminalOutput {
+  return get<StoredTerminalOutput>(STORAGE_KEYS.TERMINAL_OUTPUT, {});
 }
 
 // ============================================
