@@ -47,6 +47,25 @@ export interface CreateRepoRequest {
   url?: string;
 }
 
+export interface CloneRepoRequest {
+  url: string;
+  name?: string;
+  branch?: string;
+}
+
+export interface GitHubRepo {
+  name: string;
+  full_name: string;
+  clone_url: string;
+  private: boolean;
+  description: string | null;
+}
+
+export interface AvailableReposResponse {
+  repos: GitHubRepo[];
+  total: number;
+}
+
 // Stressor types
 export interface StressorConfig {
   enabled: boolean;
@@ -219,11 +238,39 @@ class ApiClient {
   }
 
   /**
+   * Clone a repository from URL
+   */
+  async cloneRepo(data: CloneRepoRequest): Promise<Repository> {
+    const response = await this.request<RepoResponse>("/api/repos", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return this.mapRepoResponse(response);
+  }
+
+  /**
    * Delete a repository
    */
   async deleteRepo(id: string): Promise<void> {
     await this.request<void>(`/api/repos/${id}`, {
       method: "DELETE",
+    });
+  }
+
+  /**
+   * Get available GitHub repos (requires GitHub token on server)
+   */
+  async getAvailableGitHubRepos(): Promise<GitHubRepo[]> {
+    const response = await this.request<AvailableReposResponse>("/api/repos/available");
+    return response.repos;
+  }
+
+  /**
+   * Pull latest changes for a repository
+   */
+  async pullRepo(id: string): Promise<void> {
+    await this.request<void>(`/api/repos/${id}/pull`, {
+      method: "POST",
     });
   }
 

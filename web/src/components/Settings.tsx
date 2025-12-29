@@ -46,7 +46,12 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
   const [localApiKey, setLocalApiKey] = useState(initialApiKey);
 
   // Stressor local state - available repos from /repos
-  const [availableRepos, setAvailableRepos] = useState<{ name: string; path: string }[]>([]);
+  const [availableRepos, setAvailableRepos] = useState<{ name: string; path: string; id: string }[]>([]);
+
+  // Clone repo state
+  const [cloneUrl, setCloneUrl] = useState("");
+  const [cloneStatus, setCloneStatus] = useState<"idle" | "cloning" | "success" | "error">("idle");
+  const [cloneMessage, setCloneMessage] = useState("");
 
   // Focus close button on mount
   useEffect(() => {
@@ -64,25 +69,64 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Fetch available repos from backend
-  useEffect(() => {
-    const fetchRepos = async () => {
-      try {
-        let baseUrl = localServerUrl;
-        if (baseUrl.startsWith("ws://")) {
-          baseUrl = baseUrl.replace("ws://", "http://");
-        } else if (baseUrl.startsWith("wss://")) {
-          baseUrl = baseUrl.replace("wss://", "https://");
-        }
-        const client = new ApiClient({ baseUrl, apiKey: localApiKey || undefined });
-        const repos = await client.listRepos();
-        setAvailableRepos(repos.map(r => ({ name: r.name, path: r.path })));
-      } catch {
-        // Silently fail - repos will just be empty
-      }
-    };
-    fetchRepos();
+  // Get API client helper
+  const getClient = useCallback(() => {
+    let baseUrl = localServerUrl;
+    if (baseUrl.startsWith("ws://")) {
+      baseUrl = baseUrl.replace("ws://", "http://");
+    } else if (baseUrl.startsWith("wss://")) {
+      baseUrl = baseUrl.replace("wss://", "https://");
+    }
+    return new ApiClient({ baseUrl, apiKey: localApiKey || undefined });
   }, [localServerUrl, localApiKey]);
+
+  // Fetch available repos from backend
+  const fetchRepos = useCallback(async () => {
+    try {
+      const client = getClient();
+      const repos = await client.listRepos();
+      setAvailableRepos(repos.map(r => ({ name: r.name, path: r.path, id: r.id })));
+    } catch {
+      // Silently fail - repos will just be empty
+    }
+  }, [getClient]);
+
+  useEffect(() => {
+    fetchRepos();
+  }, [fetchRepos]);
+
+  // Clone a repository
+  const handleCloneRepo = useCallback(async () => {
+    if (!cloneUrl.trim()) return;
+
+    setCloneStatus("cloning");
+    setCloneMessage("");
+
+    try {
+      const client = getClient();
+      const repo = await client.cloneRepo({ url: cloneUrl.trim() });
+      setCloneStatus("success");
+      setCloneMessage(`Cloned ${repo.name} successfully`);
+      setCloneUrl("");
+      fetchRepos(); // Refresh the list
+    } catch (err) {
+      setCloneStatus("error");
+      setCloneMessage(err instanceof Error ? err.message : "Clone failed");
+    }
+  }, [cloneUrl, getClient, fetchRepos]);
+
+  // Delete a repository
+  const handleDeleteRepo = useCallback(async (id: string, name: string) => {
+    if (!confirm(`Delete repository "${name}"? This cannot be undone.`)) return;
+
+    try {
+      const client = getClient();
+      await client.deleteRepo(id);
+      fetchRepos();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  }, [getClient, fetchRepos]);
 
   // Validate server URL
   const validateServerUrl = useCallback((url: string): string | undefined => {
@@ -422,6 +466,109 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
                   </svg>
                   {testMessage}
                 </span>
+              )}
+            </div>
+          </section>
+
+          {/* Repositories Section */}
+          <section className="p-4 border-b border-border">
+            <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
+              Repositories
+            </h3>
+
+            {/* Clone URL Input */}
+            <div className="mb-4">
+              <label
+                htmlFor="clone-url"
+                className="block text-sm font-medium text-text-primary mb-2"
+              >
+                Clone from Git URL
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="clone-url"
+                  type="url"
+                  value={cloneUrl}
+                  onChange={(e) => {
+                    setCloneUrl(e.target.value);
+                    setCloneStatus("idle");
+                  }}
+                  placeholder="https://github.com/user/repo.git"
+                  className="flex-1 px-4 py-3 rounded-lg bg-bg-primary text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCloneRepo();
+                  }}
+                />
+                <button
+                  onClick={handleCloneRepo}
+                  disabled={cloneStatus === "cloning" || !cloneUrl.trim()}
+                  className="px-4 py-2 rounded-lg bg-accent text-bg-primary font-medium hover:opacity-90 transition-opacity disabled:opacity-50 min-h-[44px]"
+                >
+                  {cloneStatus === "cloning" ? "Cloning..." : "Clone"}
+                </button>
+              </div>
+              {cloneStatus === "success" && (
+                <p className="mt-2 text-sm text-success flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {cloneMessage}
+                </p>
+              )}
+              {cloneStatus === "error" && (
+                <p className="mt-2 text-sm text-error flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                  {cloneMessage}
+                </p>
+              )}
+            </div>
+
+            {/* Cloned Repos List */}
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Cloned Repositories ({availableRepos.length})
+              </label>
+              {availableRepos.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {availableRepos.map((repo) => (
+                    <div
+                      key={repo.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-bg-primary"
+                    >
+                      <div className="flex-1 min-w-0 mr-2">
+                        <p className="text-sm font-medium text-text-primary truncate">
+                          {repo.name}
+                        </p>
+                        <p className="text-xs text-text-secondary truncate">
+                          {repo.path}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteRepo(repo.id, repo.name)}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg text-text-secondary hover:text-error hover:bg-error/10 transition-colors shrink-0"
+                        aria-label={`Delete ${repo.name}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-text-secondary">
+                    No repositories cloned yet
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    Enter a Git URL above to clone a repository
+                  </p>
+                </div>
               )}
             </div>
           </section>
