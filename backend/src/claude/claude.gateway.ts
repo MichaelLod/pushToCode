@@ -497,9 +497,11 @@ export class ClaudeGateway
 
   private handlePtyInput(
     client: AuthenticatedWebSocket,
-    data: { sessionId?: string; input: string },
+    message: { sessionId?: string; data?: string; input?: string },
   ): void {
-    const { sessionId, input } = data;
+    const { sessionId } = message;
+    // Support both 'data' (web client) and 'input' (legacy) field names
+    const input = message.data || message.input;
 
     if (!input) {
       return;

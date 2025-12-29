@@ -383,8 +383,9 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
             this.sendError(client, sessionId, 'START_INTERACTIVE_FAILED', error.message);
         }
     }
-    handlePtyInput(client, data) {
-        const { sessionId, input } = data;
+    handlePtyInput(client, message) {
+        const { sessionId } = message;
+        const input = message.data || message.input;
         if (!input) {
             return;
         }
