@@ -32,6 +32,10 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (Claude CLI blocks --dangerously-skip-permissions as root)
 RUN addgroup -g 1001 claude && adduser -D -u 1001 -G claude claude
 
+# Set git author globally for the claude user (required for commits)
+RUN git config --global user.email "claude@pushtocode.app" && \
+    git config --global user.name "Claude"
+
 # Create repos directory for volume mount (also stores Claude config and stressor config)
 RUN mkdir -p /repos/.claude /repos/.stressor && chown -R claude:claude /repos
 
