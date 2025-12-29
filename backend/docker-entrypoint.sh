@@ -105,5 +105,38 @@ else
   echo "No auth configured. Claude will prompt for OAuth login on first use."
 fi
 
+# Configure git with GitHub token for terminal access
+if [ -n "$GITHUB_TOKEN" ]; then
+  echo "Configuring git with GitHub token..."
+
+  # Set up git credential helper to use store
+  git config --global credential.helper store
+
+  # Create .git-credentials file with token
+  echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > /home/claude/.git-credentials
+  chown claude:claude /home/claude/.git-credentials
+  chmod 600 /home/claude/.git-credentials
+
+  # Also create .netrc for tools that use it
+  cat > /home/claude/.netrc << EOF
+machine github.com
+login x-access-token
+password ${GITHUB_TOKEN}
+EOF
+  chown claude:claude /home/claude/.netrc
+  chmod 600 /home/claude/.netrc
+
+  # Set default git identity (can be overridden per-repo)
+  git config --global user.email "${GIT_USER_EMAIL:-claude@pushtocode.local}"
+  git config --global user.name "${GIT_USER_NAME:-Claude}"
+
+  # Set default branch name
+  git config --global init.defaultBranch main
+
+  echo "Git configured with GitHub authentication"
+else
+  echo "No GITHUB_TOKEN - git will require manual authentication"
+fi
+
 echo "Starting application as claude user..."
 exec gosu claude node dist/main
