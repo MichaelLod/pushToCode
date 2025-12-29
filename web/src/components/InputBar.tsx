@@ -110,7 +110,7 @@ export function InputBar({
         )}
 
         {/* Main input row */}
-        <div className="flex items-end gap-2">
+        <div className="flex items-center gap-2">
           {/* Text input (auto-grow) - takes most space */}
           <div className="flex-1 relative">
             <textarea
