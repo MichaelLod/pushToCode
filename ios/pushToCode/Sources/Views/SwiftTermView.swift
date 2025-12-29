@@ -23,8 +23,8 @@ struct SwiftTermView: UIViewRepresentable {
         terminalView.nativeBackgroundColor = .black
         terminalView.nativeForegroundColor = .white
 
-        // Set font - use a larger size for better readability on mobile
-        let fontSize: CGFloat = 14
+        // Set font - smaller for more content on screen
+        let fontSize: CGFloat = 10
         terminalView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 
         containerView.addSubview(terminalView)
