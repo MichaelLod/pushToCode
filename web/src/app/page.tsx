@@ -33,9 +33,10 @@ export default function Home() {
     removeSession,
   } = useSessions();
 
-  // Terminal for current session - need to get write and focus functions
+  // Terminal for current session - need to get write, focus, and clear functions
   const terminalWriteRef = useRef<((data: string) => void) | null>(null);
   const terminalFocusRef = useRef<(() => void) | null>(null);
+  const terminalClearRef = useRef<(() => void) | null>(null);
 
   // Handle messages from server
   const handleServerMessage = useCallback((message: ServerMessage) => {
@@ -126,6 +127,10 @@ export default function Home() {
   useEffect(() => {
     if (isConnected && currentSession && !initializedSessionsRef.current.has(currentSession.id)) {
       console.log("Starting interactive session:", currentSession.id);
+
+      // Clear terminal before re-initializing to avoid duplicate output on reconnect
+      terminalClearRef.current?.();
+
       initializedSessionsRef.current.add(currentSession.id);
 
       send({
@@ -315,6 +320,7 @@ export default function Home() {
                 onReady={(terminal) => {
                   terminalWriteRef.current = terminal.write;
                   terminalFocusRef.current = terminal.focus;
+                  terminalClearRef.current = terminal.clear;
                   // Auto-focus terminal when ready
                   terminal.focus();
                 }}
