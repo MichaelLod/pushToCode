@@ -295,11 +295,48 @@ export function FileUpload({
             <span>Gallery</span>
           </button>
 
-          <div className="border-t border-border">
-            <p className="px-4 py-2 text-xs text-text-secondary">
-              Or paste from clipboard (Ctrl+V)
-            </p>
-          </div>
+          <button
+            onClick={async () => {
+              try {
+                const clipboardItems = await navigator.clipboard.read();
+                const files: File[] = [];
+                for (const item of clipboardItems) {
+                  for (const type of item.types) {
+                    if (SUPPORTED_TYPES.includes(type) || type.startsWith('image/')) {
+                      const blob = await item.getType(type);
+                      const ext = type.split('/')[1] || 'png';
+                      const file = new File([blob], `pasted-${Date.now()}.${ext}`, { type });
+                      files.push(file);
+                    }
+                  }
+                }
+                if (files.length > 0) {
+                  addFiles(files);
+                  setShowMenu(false);
+                }
+              } catch (err) {
+                console.log('Clipboard access denied or empty');
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-left text-text-primary
+                       hover:bg-border transition-colors min-h-[44px] border-t border-border"
+            role="menuitem"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            <span>Paste from Clipboard</span>
+          </button>
         </div>
       )}
 

@@ -22,6 +22,8 @@ interface SessionData {
   ptyProcess?: pty.IPty;     // Interactive PTY process
   ptyBuffer: string;         // Accumulated PTY output
   lastSentLength: number;    // Track what we've already sent to iOS
+  isProcessing?: boolean;    // Track if we're in a processing state
+  lastProcessingTime?: number; // Debounce processing updates
 }
 
 @Injectable()
@@ -437,9 +439,12 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
 
     ptyProcess.onData((data: string) => {
-      // Send raw PTY output directly - iOS handles rendering
-      if (data) {
-        emitter.emit('pty_output', data);
+      // Filter processing spam before sending
+      const filteredData = this.filterProcessingSpam(data, session);
+
+      // Send PTY output if not filtered out
+      if (filteredData) {
+        emitter.emit('pty_output', filteredData);
       }
 
       // Check for auth URL in PTY output (when user types /login)
@@ -843,6 +848,41 @@ export class ClaudeService implements OnModuleInit {
 
     const result = lines.join('\n').trim();
     return result || null;
+  }
+
+  // Filter out processing/spinner spam - returns null if should be skipped
+  private filterProcessingSpam(data: string, session: SessionData): string | null {
+    const cleanData = this.stripAnsiAndControl(data);
+
+    // Patterns that indicate processing/loading states
+    const processingPatterns = [
+      /contemplating/i,             // Claude's thinking indicator
+      /processing/i,
+      /thinking/i,
+      /working/i,
+      /loading/i,
+      /esc to interrupt/i,          // Status line indicator
+      /⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/,  // Spinner characters
+      /[▁▂▃▄▅▆▇█▇▆▅▄▃▂▁]/,        // Progress bar characters
+      /\.\.\./,                     // Ellipsis animation
+    ];
+
+    const isProcessingLine = processingPatterns.some(p => p.test(cleanData));
+    const now = Date.now();
+
+    if (isProcessingLine) {
+      // If already processing, throttle updates to max 1 per 500ms
+      if (session.isProcessing && session.lastProcessingTime && (now - session.lastProcessingTime < 500)) {
+        return null; // Skip this update
+      }
+      session.isProcessing = true;
+      session.lastProcessingTime = now;
+    } else if (cleanData.trim().length > 0) {
+      // Non-processing content - reset state
+      session.isProcessing = false;
+    }
+
+    return data;
   }
 
   private extractAuthUrl(content: string): string | null {
