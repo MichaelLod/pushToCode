@@ -10,6 +10,8 @@ export interface InputBarProps {
   onKeyPress?: (key: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  serverUrl?: string;
+  apiKey?: string;
 }
 
 /**
@@ -21,6 +23,8 @@ export function InputBar({
   onKeyPress,
   disabled = false,
   placeholder = "Enter command...",
+  serverUrl,
+  apiKey,
 }: InputBarProps) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
@@ -216,6 +220,8 @@ export function InputBar({
         isOpen={showVoiceRecorder}
         onClose={() => setShowVoiceRecorder(false)}
         onTranscription={handleTranscription}
+        serverUrl={serverUrl}
+        apiKey={apiKey}
       />
     </>
   );

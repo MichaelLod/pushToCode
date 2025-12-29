@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
+import { useVoiceRecorder, VoiceRecorderOptions } from "@/hooks/useVoiceRecorder";
 
 export interface VoiceRecorderProps {
   isOpen: boolean;
   onClose: () => void;
   onTranscription: (text: string) => void;
+  serverUrl?: string;
+  apiKey?: string;
 }
 
 /**
@@ -17,9 +19,12 @@ export function VoiceRecorder({
   isOpen,
   onClose,
   onTranscription,
+  serverUrl,
+  apiKey,
 }: VoiceRecorderProps) {
+  const recorderOptions: VoiceRecorderOptions = { serverUrl, apiKey };
   const { state, startRecording, stopRecording, cancelRecording, canvasRef } =
-    useVoiceRecorder();
+    useVoiceRecorder(recorderOptions);
 
   const { isRecording, isTranscribing, duration, error } = state;
 

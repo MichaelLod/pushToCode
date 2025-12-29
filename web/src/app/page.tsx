@@ -262,6 +262,8 @@ export default function Home() {
                   ? "No session"
                   : "Enter command..."
               }
+              serverUrl={settings.serverUrl}
+              apiKey={settings.apiKey}
             />
           </div>
         </div>

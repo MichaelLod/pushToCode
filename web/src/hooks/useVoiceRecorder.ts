@@ -11,6 +11,11 @@ export interface VoiceRecorderState {
   audioData: Float32Array | null;
 }
 
+export interface VoiceRecorderOptions {
+  serverUrl?: string;
+  apiKey?: string;
+}
+
 export interface UseVoiceRecorderResult {
   state: VoiceRecorderState;
   startRecording: () => Promise<void>;
@@ -23,7 +28,7 @@ export interface UseVoiceRecorderResult {
  * Hook for voice recording with Web Audio waveform visualization
  * Uses MediaRecorder API with audio/webm format
  */
-export function useVoiceRecorder(): UseVoiceRecorderResult {
+export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecorderResult {
   const [state, setState] = useState<VoiceRecorderState>({
     isRecording: false,
     isTranscribing: false,
@@ -229,7 +234,8 @@ export function useVoiceRecorder(): UseVoiceRecorderResult {
 
         try {
           const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-          const apiClient = getApiClient();
+          const baseUrl = options?.serverUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+          const apiClient = getApiClient({ baseUrl, apiKey: options?.apiKey });
           const response = await apiClient.transcribe(audioBlob);
 
           setState((prev) => ({
