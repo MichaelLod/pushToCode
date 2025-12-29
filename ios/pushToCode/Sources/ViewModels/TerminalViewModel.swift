@@ -284,25 +284,8 @@ final class TerminalViewModel: ObservableObject {
             session.status = .running
         }
 
-        // Claude CLI is a TUI that redraws the screen using cursor positioning.
-        // Since we don't have a real terminal emulator, detect full "frames" and replace.
-        // A frame typically contains cursor home sequences or multiple lines with status elements.
-        let isFullFrame = content.contains("\u{1b}[H") ||  // Cursor home
-                          content.contains("\u{1b}[2J") || // Clear screen
-                          content.contains("\u{1b}[1;1H") || // Cursor to 1,1
-                          (content.contains("bypass permissions") && content.count > 200) // Large chunk with status bar
-
-        if isFullFrame {
-            // This is a full screen redraw - replace buffer
-            ptyOutput = content
-            parser.reset()
-        } else {
-            // Small incremental update - append
-            ptyOutput += content
-        }
-
-        // Parse ANSI codes and update attributed output
-        parsedOutput = parser.parse(ptyOutput)
+        // Just accumulate raw PTY output - SwiftTerm handles all rendering
+        ptyOutput += content
 
         // Start idle detection timer
         // If no more output for N seconds, consider Claude idle (waiting for input)

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftTerm
 import UIKit
 
 struct TerminalView: View {
@@ -161,29 +162,8 @@ struct TerminalView: View {
     // MARK: - Terminal Output View
 
     private var terminalOutputView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                Group {
-                    if viewModel.parsedOutput.characters.isEmpty && viewModel.session.projectPath != nil {
-                        // Show placeholder with blinking cursor when empty but session active
-                        TerminalPlaceholderView()
-                    } else {
-                        Text(viewModel.parsedOutput)
-                            .font(.system(size: 13, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                }
-                .padding(12)
-                .id("terminal-output")
-            }
-            .background(TerminalTheme.darkBackground)
-            .onChange(of: viewModel.ptyOutput) { _ in
-                withAnimation(.easeOut(duration: 0.1)) {
-                    proxy.scrollTo("terminal-output", anchor: .bottom)
-                }
-            }
-        }
+        SwiftTermView(viewModel: viewModel)
+            .background(Color.black)
     }
 
     // MARK: - Messages List View
