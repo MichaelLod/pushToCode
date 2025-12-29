@@ -347,9 +347,27 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
-      // Just send the input directly - no special handling needed
-      // The CLI should process commands normally
-      session.ptyProcess.write(input);
+      // Check if this is a slash command (starts with /)
+      // Claude CLI shows autocomplete for these - need double-Enter:
+      // 1st Enter confirms autocomplete selection, 2nd Enter executes
+      const trimmedInput = input.replace(/\r$/, ''); // Remove trailing \r for check
+      const isSlashCommand = trimmedInput.startsWith('/');
+
+      if (isSlashCommand) {
+        this.logger.log(`Detected slash command: ${trimmedInput}`);
+        // Send command + Enter to confirm autocomplete selection
+        session.ptyProcess.write(input);
+        // After short delay, send second Enter to execute
+        setTimeout(() => {
+          if (session.ptyProcess) {
+            this.logger.log(`Sending second Enter for slash command execution`);
+            session.ptyProcess.write('\r');
+          }
+        }, 150);
+      } else {
+        // Regular input - just send as-is
+        session.ptyProcess.write(input);
+      }
 
       this.logger.log(`PTY input sent successfully`);
       return true;
