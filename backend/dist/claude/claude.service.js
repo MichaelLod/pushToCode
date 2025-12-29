@@ -377,15 +377,8 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         session.ptyProcess = ptyProcess;
         this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
         ptyProcess.onData((data) => {
-            session.ptyBuffer += data;
-            const cleanBuffer = this.stripAnsiAndControl(session.ptyBuffer);
-            if (cleanBuffer.length > session.lastSentLength) {
-                const delta = cleanBuffer.substring(session.lastSentLength);
-                session.lastSentLength = cleanBuffer.length;
-                if (delta.trim()) {
-                    this.logger.log(`Session ${sessionId} delta: ${delta.substring(0, 100)}`);
-                    emitter.emit('pty_output', delta);
-                }
+            if (data) {
+                emitter.emit('pty_output', data);
             }
             const authUrl = this.extractAuthUrl(data);
             if (authUrl) {

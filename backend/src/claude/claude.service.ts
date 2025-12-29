@@ -434,21 +434,9 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
 
     ptyProcess.onData((data: string) => {
-      // Accumulate raw PTY output
-      session.ptyBuffer += data;
-
-      // Strip ANSI codes for clean output
-      const cleanBuffer = this.stripAnsiAndControl(session.ptyBuffer);
-
-      // Only send the delta (new content since last send)
-      if (cleanBuffer.length > session.lastSentLength) {
-        const delta = cleanBuffer.substring(session.lastSentLength);
-        session.lastSentLength = cleanBuffer.length;
-
-        if (delta.trim()) {
-          this.logger.log(`Session ${sessionId} delta: ${delta.substring(0, 100)}`);
-          emitter.emit('pty_output', delta);
-        }
+      // Send raw PTY output directly - iOS handles rendering
+      if (data) {
+        emitter.emit('pty_output', data);
       }
 
       // Check for auth URL in PTY output (when user types /login)
