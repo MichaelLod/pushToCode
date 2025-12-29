@@ -32,17 +32,26 @@ struct AgentSelectorView: View {
                     .cornerRadius(16)
             }
             .accessibilityLabel("Agent selector")
-
-            // Expandable agent pills
+        }
+        .overlay(alignment: .topLeading) {
+            // Expandable agent pills as popup
             if isExpanded {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     ForEach(agents, id: \.0) { agent in
                         agentPill(name: agent.0, hint: agent.1)
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                )
+                .offset(y: -50)
                 .transition(.asymmetric(
-                    insertion: .scale(scale: 0.8, anchor: .leading).combined(with: .opacity),
-                    removal: .scale(scale: 0.8, anchor: .leading).combined(with: .opacity)
+                    insertion: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity),
+                    removal: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity)
                 ))
             }
         }

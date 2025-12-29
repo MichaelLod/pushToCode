@@ -347,37 +347,36 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
-      // Convert \r to \n for Unix PTY - Claude CLI expects Unix newline
-      const unixInput = input.replace(/\r/g, '\n');
-      const debugUnixInput = unixInput.replace(/\n/g, '\\n');
-      this.logger.log(`Converted to Unix newline: "${debugUnixInput}"`);
+      // Simple approach: send text + carriage return (like pressing Enter)
+      // Remove any existing line endings, then add \r
+      const textOnly = input.replace(/[\r\n]+$/, '');
+      const inputWithEnter = textOnly + '\r';
+      this.logger.log(`Sending: "${textOnly}" + Enter`);
 
       // Check if this is a slash command (starts with /)
       // Claude CLI shows autocomplete for these - need double-Enter:
       // 1st Enter confirms autocomplete selection, 2nd Enter executes
-      const trimmedInput = input.replace(/[\r\n]+$/, ''); // Remove trailing newlines for check
-      const isSlashCommand = trimmedInput.startsWith('/');
+      const isSlashCommand = textOnly.startsWith('/');
 
       if (isSlashCommand) {
-        this.logger.log(`Detected slash command: ${trimmedInput}, sending with double-Enter`);
-        // Send command + Enter to confirm autocomplete selection
-        session.ptyProcess.write(unixInput);
+        this.logger.log(`Detected slash command: ${textOnly}, sending with double-Enter`);
+        // Send command + Enter
+        session.ptyProcess.write(inputWithEnter);
         this.logger.log(`First write complete (command + Enter)`);
-        // After delay, send second Enter to execute the command
-        // Use 200ms to ensure autocomplete has time to process
+        // After delay, send second Enter to execute
         setTimeout(() => {
           const currentSession = this.sessions.get(sessionId);
           if (currentSession?.ptyProcess) {
             this.logger.log(`Sending second Enter for slash command execution`);
-            currentSession.ptyProcess.write('\n');
+            currentSession.ptyProcess.write('\r');
             this.logger.log(`Second Enter sent`);
           } else {
             this.logger.warn(`PTY no longer active for second Enter`);
           }
         }, 200);
       } else {
-        // Regular input - send with Unix newline
-        session.ptyProcess.write(unixInput);
+        // Regular input - just send text + Enter
+        session.ptyProcess.write(inputWithEnter);
       }
 
       this.logger.log(`PTY input sent successfully`);

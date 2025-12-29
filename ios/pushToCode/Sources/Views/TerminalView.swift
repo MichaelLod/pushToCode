@@ -228,71 +228,22 @@ struct TerminalView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
 
         return VStack(spacing: 8) {
-            // Terminal control buttons (arrow keys, escape, enter)
+            // Terminal control toolbar
             if viewModel.session.projectPath != nil {
-                HStack(spacing: 12) {
-                    // Escape key
-                    TerminalKeyButton(label: "ESC", systemImage: nil) {
-                        impactFeedback.impactOccurred()
-                        viewModel.sendRawInput("\u{1b}")  // Escape character
+                HStack(spacing: 8) {
+                    // Left side: Cycle mode + Agent selector
+                    CycleModeButton {
+                        viewModel.sendRawInput("\u{1b}[Z")  // Shift+Tab
                     }
-                    .accessibilityLabel("Escape key")
 
-                    // Login button - triggers proper claude login flow
-                    Button {
-                        impactFeedback.impactOccurred()
-                        viewModel.triggerLogin()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "person.badge.key")
-                            Text("Login")
-                        }
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.orange)
-                        .cornerRadius(6)
-                    }
-                    .accessibilityLabel("Login to Claude")
+                    AgentSelectorView(inputText: $viewModel.inputText)
 
                     Spacer()
 
-                    // Arrow keys
-                    HStack(spacing: 8) {
-                        TerminalKeyButton(label: nil, systemImage: "arrow.up") {
-                            impactFeedback.impactOccurred()
-                            viewModel.sendRawInput("\u{1b}[A")  // Up arrow
-                        }
-                        .accessibilityLabel("Up arrow")
-
-                        TerminalKeyButton(label: nil, systemImage: "arrow.down") {
-                            impactFeedback.impactOccurred()
-                            viewModel.sendRawInput("\u{1b}[B")  // Down arrow
-                        }
-                        .accessibilityLabel("Down arrow")
-
-                        TerminalKeyButton(label: nil, systemImage: "arrow.left") {
-                            impactFeedback.impactOccurred()
-                            viewModel.sendRawInput("\u{1b}[D")  // Left arrow
-                        }
-                        .accessibilityLabel("Left arrow")
-
-                        TerminalKeyButton(label: nil, systemImage: "arrow.right") {
-                            impactFeedback.impactOccurred()
-                            viewModel.sendRawInput("\u{1b}[C")  // Right arrow
-                        }
-                        .accessibilityLabel("Right arrow")
+                    // Right side: Keyboard controls
+                    KeyboardControlsView { key in
+                        viewModel.sendRawInput(key)
                     }
-
-                    Spacer()
-
-                    // Enter key
-                    TerminalKeyButton(label: "↵", systemImage: nil) {
-                        impactFeedback.impactOccurred()
-                        viewModel.sendRawInput("\r")  // Enter/Return
-                    }
-                    .accessibilityLabel("Return key")
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)

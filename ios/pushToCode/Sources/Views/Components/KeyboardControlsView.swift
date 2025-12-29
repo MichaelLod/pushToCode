@@ -16,9 +16,26 @@ struct KeyboardControlsView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // Expandable content (shown on left when expanded)
+            // Main toggle button
+            Button {
+                impactFeedback.impactOccurred()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isExpanded ? .blue : .primary)
+                    .frame(width: 32, height: 32)
+                    .background(isExpanded ? Color.blue.opacity(0.15) : Color(.tertiarySystemBackground))
+                    .cornerRadius(16)
+            }
+            .accessibilityLabel("Toggle keyboard controls")
+        }
+        .overlay(alignment: .topTrailing) {
+            // Expandable keys as popup
             if isExpanded {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     // ESC
                     keyButton(label: "ESC", icon: nil, key: escapeKey)
                         .accessibilityLabel("Escape key")
@@ -40,27 +57,19 @@ struct KeyboardControlsView: View {
                     keyButton(label: "↵", icon: nil, key: enterKey)
                         .accessibilityLabel("Return key")
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                )
+                .offset(y: -50)
                 .transition(.asymmetric(
-                    insertion: .scale(scale: 0.8, anchor: .trailing).combined(with: .opacity),
-                    removal: .scale(scale: 0.8, anchor: .trailing).combined(with: .opacity)
+                    insertion: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity),
+                    removal: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity)
                 ))
             }
-
-            // Main toggle button
-            Button {
-                impactFeedback.impactOccurred()
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isExpanded ? .blue : .primary)
-                    .frame(width: 32, height: 32)
-                    .background(isExpanded ? Color.blue.opacity(0.15) : Color(.tertiarySystemBackground))
-                    .cornerRadius(16)
-            }
-            .accessibilityLabel("Toggle keyboard controls")
         }
     }
 

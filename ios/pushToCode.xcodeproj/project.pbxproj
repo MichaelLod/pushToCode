@@ -32,6 +32,10 @@
 		DBFE4AD8A669F5C992BFA09C /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F066FD591B787602E4A507 /* SettingsManager.swift */; };
 		E4EF26DD487569A9D593ECDF /* ReposService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CDB48DAC162D221A630214 /* ReposService.swift */; };
 		F8035656618BE63D3E441E68 /* WebSocketService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94DCFA0B6F4BFE3007564FB /* WebSocketService.swift */; };
+		COMP00000000000000001111 /* ExpandablePillButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = COMP00000000000000002221 /* ExpandablePillButton.swift */; };
+		COMP00000000000000001112 /* CycleModeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = COMP00000000000000002222 /* CycleModeButton.swift */; };
+		COMP00000000000000001113 /* KeyboardControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COMP00000000000000002223 /* KeyboardControlsView.swift */; };
+		COMP00000000000000001114 /* AgentSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COMP00000000000000002224 /* AgentSelectorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +66,10 @@
 		CC2C6A4E59CFA5253F49CFB5 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		E21FDFA27D11437BBA2E8902 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		E958A674FC15A43C99D4DE77 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		COMP00000000000000002221 /* ExpandablePillButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandablePillButton.swift; sourceTree = "<group>"; };
+		COMP00000000000000002222 /* CycleModeButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CycleModeButton.swift; sourceTree = "<group>"; };
+		COMP00000000000000002223 /* KeyboardControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardControlsView.swift; sourceTree = "<group>"; };
+		COMP00000000000000002224 /* AgentSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSelectorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -141,6 +149,7 @@
 		C4644ADA719508532C19AF71 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				COMP00000000000000003333 /* Components */,
 				22222222222222222222BBB1 /* ConnectionStatusView.swift */,
 				22222222222222222222BBB2 /* EmptyStateView.swift */,
 				3D294DAF6BC966D01B85B867 /* ProjectPickerView.swift */,
@@ -152,6 +161,17 @@
 				A0DD63C5E1441EF1C944178E /* VoiceRecorderView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		COMP00000000000000003333 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				COMP00000000000000002224 /* AgentSelectorView.swift */,
+				COMP00000000000000002222 /* CycleModeButton.swift */,
+				COMP00000000000000002221 /* ExpandablePillButton.swift */,
+				COMP00000000000000002223 /* KeyboardControlsView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		C71CE027EC3EBB8D3E134BFE /* Extensions */ = {
@@ -279,6 +299,10 @@
 				AF27F745496F32054DAEAF1F /* WebSocketMessage.swift in Sources */,
 				F8035656618BE63D3E441E68 /* WebSocketService.swift in Sources */,
 				684CF53B154D011062F9F7EF /* pushToCodeApp.swift in Sources */,
+				COMP00000000000000001111 /* ExpandablePillButton.swift in Sources */,
+				COMP00000000000000001112 /* CycleModeButton.swift in Sources */,
+				COMP00000000000000001113 /* KeyboardControlsView.swift in Sources */,
+				COMP00000000000000001114 /* AgentSelectorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
