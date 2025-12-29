@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef } from "react";
 import { FileUpload, FileAttachment } from "./FileUpload";
 import { KeyboardControls } from "./KeyboardControls";
 import { VoiceRecorder } from "./VoiceRecorder";
@@ -30,26 +30,7 @@ export function InputBar({
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Auto-resize textarea (1-5 lines)
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    // Reset height to calculate scroll height
-    textarea.style.height = "auto";
-
-    // Calculate line height (approximately 24px per line)
-    const lineHeight = 24;
-    const minHeight = lineHeight; // 1 line
-    const maxHeight = lineHeight * 5; // 5 lines
-
-    const scrollHeight = textarea.scrollHeight;
-    const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-
-    textarea.style.height = `${newHeight}px`;
-  }, [text]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Handle submit
   const handleSubmit = useCallback(() => {
@@ -59,20 +40,7 @@ export function InputBar({
     onSubmit(trimmedText, attachments);
     setText("");
     setAttachments([]);
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
   }, [text, attachments, onSubmit]);
-
-  // Handle keyboard enter
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      handleSubmit();
-    }
-  };
 
   // Handle keyboard control key press
   const handleKeyboardKeyPress = useCallback(
@@ -88,8 +56,8 @@ export function InputBar({
       const newText = prev ? `${prev} ${transcribedText}` : transcribedText;
       return newText;
     });
-    // Focus textarea after transcription
-    textareaRef.current?.focus();
+    // Focus input after transcription
+    inputRef.current?.focus();
   }, []);
 
   // Check if send should be enabled
@@ -111,23 +79,25 @@ export function InputBar({
 
         {/* Main input row */}
         <div className="flex items-center gap-2">
-          {/* Text input (auto-grow) - takes most space */}
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              placeholder={placeholder}
-              rows={1}
-              className="w-full resize-none rounded-xl bg-bg-secondary px-4 py-2 text-text-primary
-                        placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
-                        disabled:opacity-50 disabled:cursor-not-allowed h-10"
-              style={{ lineHeight: "24px" }}
-              aria-label="Command input"
-            />
-          </div>
+          {/* Text input - takes most space */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            disabled={disabled}
+            placeholder={placeholder}
+            className="flex-1 h-10 rounded-xl bg-bg-secondary px-4 text-text-primary
+                      placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Command input"
+          />
 
           {/* Action buttons group */}
           <div className="flex items-center gap-1.5">
