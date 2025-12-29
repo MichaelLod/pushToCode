@@ -116,12 +116,10 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     }
   }, [getClient]);
 
-  // Only fetch GitHub repos after connection is verified
+  // Fetch GitHub repos on mount
   useEffect(() => {
-    if (connectionVerified) {
-      fetchGithubRepos();
-    }
-  }, [connectionVerified, fetchGithubRepos]);
+    fetchGithubRepos();
+  }, [fetchGithubRepos]);
 
   // Clone a repository
   const handleCloneRepo = useCallback(async (url: string, name: string) => {
@@ -538,21 +536,14 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
                 </label>
                 <button
                   onClick={fetchGithubRepos}
-                  disabled={githubLoading || !connectionVerified}
+                  disabled={githubLoading}
                   className="text-xs text-accent hover:underline disabled:opacity-50"
                 >
                   {githubLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
 
-              {!connectionVerified ? (
-                <div className="p-4 rounded-lg bg-bg-primary text-center">
-                  <p className="text-sm text-text-secondary">Test connection to load repositories</p>
-                  <p className="text-xs text-text-secondary mt-1">
-                    Click &quot;Test Connection&quot; above to verify server settings
-                  </p>
-                </div>
-              ) : githubError ? (
+              {githubError ? (
                 <div className="p-4 rounded-lg bg-bg-primary text-center">
                   <p className="text-sm text-error">{githubError}</p>
                   <p className="text-xs text-text-secondary mt-1">
