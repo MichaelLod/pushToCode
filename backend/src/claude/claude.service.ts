@@ -365,25 +365,25 @@ export class ClaudeService implements OnModuleInit {
 
       if (isSlashCommand) {
         this.logger.log(`Detected slash command: ${textOnly}, sending with double-Enter`);
-        // Send bracketed paste text, then Enter to confirm autocomplete
+        // Send bracketed paste text, then newline to confirm autocomplete
         session.ptyProcess.write(pastedText);
-        session.ptyProcess.write('\r');
-        this.logger.log(`First write complete (paste + Enter)`);
-        // After delay, send second Enter to execute the command
+        session.ptyProcess.write('\n');
+        this.logger.log(`First write complete (paste + newline)`);
+        // After delay, send second newline to execute the command
         setTimeout(() => {
           const currentSession = this.sessions.get(sessionId);
           if (currentSession?.ptyProcess) {
-            this.logger.log(`Sending second Enter for slash command execution`);
-            currentSession.ptyProcess.write('\r');
-            this.logger.log(`Second Enter sent`);
+            this.logger.log(`Sending second newline for slash command execution`);
+            currentSession.ptyProcess.write('\n');
+            this.logger.log(`Second newline sent`);
           } else {
-            this.logger.warn(`PTY no longer active for second Enter`);
+            this.logger.warn(`PTY no longer active for second newline`);
           }
         }, 200);
       } else {
-        // Regular input - send bracketed paste, then Enter to submit
+        // Regular input - send bracketed paste, then newline to submit (like login flow)
         session.ptyProcess.write(pastedText);
-        session.ptyProcess.write('\r');
+        session.ptyProcess.write('\n');
       }
 
       this.logger.log(`PTY input sent successfully`);
