@@ -11,6 +11,7 @@ import {
   setSettings as persistSettings,
   getApiKey,
   setApiKey as persistApiKey,
+  requestPersistentStorage,
 } from "@/lib/storage";
 
 export interface UseSettingsReturn {
@@ -59,6 +60,9 @@ export function useSettings(): UseSettingsReturn {
     setApiKeyState(storedApiKey);
     setSavedSnapshot(JSON.stringify({ ...stored, apiKey: storedApiKey }));
     setIsLoaded(true);
+
+    // Request persistent storage for PWA
+    requestPersistentStorage();
   }, []);
 
   // Check for unsaved changes

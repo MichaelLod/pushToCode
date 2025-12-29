@@ -30,6 +30,31 @@ function isLocalStorageAvailable(): boolean {
 }
 
 /**
+ * Request persistent storage for PWA
+ * This prevents the browser from evicting localStorage data
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.storage?.persist) {
+    return false;
+  }
+
+  try {
+    const isPersisted = await navigator.storage.persisted();
+    if (isPersisted) {
+      console.log("[Storage] Already persistent");
+      return true;
+    }
+
+    const granted = await navigator.storage.persist();
+    console.log("[Storage] Persistent storage:", granted ? "granted" : "denied");
+    return granted;
+  } catch (error) {
+    console.error("[Storage] Error requesting persistent storage:", error);
+    return false;
+  }
+}
+
+/**
  * Generic get function with type safety
  */
 function get<T>(key: StorageKey, defaultValue: T): T {
