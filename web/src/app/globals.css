@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  /* iOS Terminal Theme Design Tokens */
+  --bg-primary: #1a1b26;
+  --bg-secondary: #24283b;
+  --text-primary: #c0caf5;
+  --text-secondary: #565f89;
+  --status-success: #9ece6a;
+  --status-error: #f7768e;
+  --status-warning: #e0af68;
+  --status-info: #7aa2f7;
+
+  /* Semantic mappings */
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
+  --muted: var(--text-secondary);
+  --border: #414868;
+  --accent: var(--status-info);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+
+  /* iOS Theme Colors */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-success: var(--status-success);
+  --color-error: var(--status-error);
+  --color-warning: var(--status-warning);
+  --color-info: var(--status-info);
+
+  /* Fonts */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Terminal container styles */
+.terminal-container {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Scrollbar styling for terminal */
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Status indicator styles */
+.status-connected {
+  color: var(--status-success);
+}
+
+.status-disconnected {
+  color: var(--status-error);
+}
+
+.status-connecting {
+  color: var(--status-warning);
+}
