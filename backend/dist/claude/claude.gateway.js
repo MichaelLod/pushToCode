@@ -118,6 +118,9 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                 case 'start_interactive':
                     await this.handleStartInteractive(client, data);
                     break;
+                case 'upload_file':
+                    await this.handleUploadFile(client, data);
+                    break;
                 case 'ping':
                     this.handlePing(client);
                     break;
@@ -399,6 +402,48 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         if (!success) {
             this.sendError(client, sessionId || '', 'PTY_INPUT_FAILED', 'No active PTY session to send input to.');
         }
+    }
+    async handleUploadFile(client, data) {
+        const { sessionId, filename, mimeType, data: base64Data } = data;
+        this.logger.log(`Upload file: ${filename} (${mimeType}) for session ${sessionId}`);
+        try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const crypto = await import('crypto');
+            const tempDir = '/tmp/pushtocode-uploads';
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            const ext = path.extname(filename) || this.getExtFromMime(mimeType);
+            const uniqueName = `${crypto.randomBytes(8).toString('hex')}${ext}`;
+            const filePath = path.join(tempDir, uniqueName);
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(filePath, buffer);
+            this.logger.log(`File saved to: ${filePath}`);
+            this.sendMessage(client, {
+                type: 'file_uploaded',
+                sessionId,
+                filePath,
+                filename,
+            });
+        }
+        catch (error) {
+            this.logger.error(`File upload failed: ${error.message}`);
+            this.sendError(client, sessionId, 'UPLOAD_FAILED', error.message);
+        }
+    }
+    getExtFromMime(mimeType) {
+        const mimeToExt = {
+            'image/png': '.png',
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'image/svg+xml': '.svg',
+            'application/pdf': '.pdf',
+            'text/plain': '.txt',
+        };
+        return mimeToExt[mimeType] || '';
     }
     handlePing(client) {
         client.isAlive = true;

@@ -161,6 +161,9 @@ export class ClaudeGateway
         case 'start_interactive':
           await this.handleStartInteractive(client, data);
           break;
+        case 'upload_file':
+          await this.handleUploadFile(client, data);
+          break;
         case 'ping':
           this.handlePing(client);
           break;
@@ -523,6 +526,63 @@ export class ClaudeGateway
         'No active PTY session to send input to.',
       );
     }
+  }
+
+  private async handleUploadFile(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string; filename: string; mimeType: string; data: string },
+  ): Promise<void> {
+    const { sessionId, filename, mimeType, data: base64Data } = data;
+    this.logger.log(`Upload file: ${filename} (${mimeType}) for session ${sessionId}`);
+
+    try {
+      // Import fs dynamically
+      const fs = await import('fs');
+      const path = await import('path');
+      const crypto = await import('crypto');
+
+      // Create temp directory if it doesn't exist
+      const tempDir = '/tmp/pushtocode-uploads';
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      // Generate unique filename
+      const ext = path.extname(filename) || this.getExtFromMime(mimeType);
+      const uniqueName = `${crypto.randomBytes(8).toString('hex')}${ext}`;
+      const filePath = path.join(tempDir, uniqueName);
+
+      // Decode base64 and write file
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      this.logger.log(`File saved to: ${filePath}`);
+
+      // Send success response
+      this.sendMessage(client, {
+        type: 'file_uploaded',
+        sessionId,
+        filePath,
+        filename,
+      });
+    } catch (error) {
+      this.logger.error(`File upload failed: ${error.message}`);
+      this.sendError(client, sessionId, 'UPLOAD_FAILED', error.message);
+    }
+  }
+
+  private getExtFromMime(mimeType: string): string {
+    const mimeToExt: Record<string, string> = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/svg+xml': '.svg',
+      'application/pdf': '.pdf',
+      'text/plain': '.txt',
+    };
+    return mimeToExt[mimeType] || '';
   }
 
   private handlePing(client: AuthenticatedWebSocket): void {

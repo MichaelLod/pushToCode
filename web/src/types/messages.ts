@@ -173,6 +173,13 @@ export interface InteractiveStartedMessage {
   message?: string;
 }
 
+export interface FileUploadedMessage {
+  type: "file_uploaded";
+  sessionId: string;
+  filePath: string;
+  filename: string;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
@@ -185,7 +192,8 @@ export type ServerMessage =
   | AuthFailedMessage
   | PtyOutputMessage
   | LoginInteractiveMessage
-  | InteractiveStartedMessage;
+  | InteractiveStartedMessage
+  | FileUploadedMessage;
 
 // ============================================
 // Type Guards

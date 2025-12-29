@@ -73,6 +73,9 @@ export default function Home() {
       case "login_interactive":
         console.log("Login interactive:", message.message);
         break;
+      case "file_uploaded":
+        console.log("File uploaded:", message.filePath);
+        break;
       case "ping":
       case "pong":
         // Handled by websocket client
@@ -126,18 +129,58 @@ export default function Home() {
     [currentSession, isConnected, send]
   );
 
+  // Helper to convert file to base64
+  const fileToBase64 = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix (e.g., "data:image/png;base64,")
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
   // Handle submit from InputBar (text + attachments)
   const handleSubmit = useCallback(
-    (text: string, attachments: FileAttachment[]) => {
-      if (text.trim()) {
-        handleSendMessage(text);
+    async (text: string, attachments: FileAttachment[]) => {
+      if (!currentSession || !isConnected) return;
+
+      // Upload files first
+      const uploadedPaths: string[] = [];
+      for (const attachment of attachments) {
+        try {
+          const base64Data = await fileToBase64(attachment.file);
+          send({
+            type: "upload_file",
+            sessionId: currentSession.id,
+            filename: attachment.file.name,
+            mimeType: attachment.file.type,
+            data: base64Data,
+          });
+          // We'll include a reference to the file in the message
+          // The actual path will be logged when file_uploaded is received
+          uploadedPaths.push(attachment.file.name);
+        } catch (err) {
+          console.error("Failed to upload file:", err);
+        }
       }
-      if (attachments.length > 0) {
-        console.log("Attachments:", attachments.map(a => a.file.name));
-        // TODO: Handle file uploads
+
+      // Build message with file references
+      let message = text.trim();
+      if (uploadedPaths.length > 0) {
+        const fileNote = `[Attached: ${uploadedPaths.join(", ")} - files saved to /tmp/pushtocode-uploads/]`;
+        message = message ? `${message}\n\n${fileNote}` : fileNote;
+      }
+
+      if (message) {
+        handleSendMessage(message);
       }
     },
-    [handleSendMessage]
+    [currentSession, isConnected, send, fileToBase64, handleSendMessage]
   );
 
   // Handle terminal input (keystrokes)
