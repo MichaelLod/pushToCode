@@ -112,6 +112,12 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                 case 'submit_auth_code':
                     await this.handleSubmitAuthCode(client, data);
                     break;
+                case 'pty_input':
+                    this.handlePtyInput(client, data);
+                    break;
+                case 'start_interactive':
+                    await this.handleStartInteractive(client, data);
+                    break;
                 case 'ping':
                     this.handlePing(client);
                     break;
@@ -171,6 +177,15 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                     if (!output.authUrl) {
                         this.logger.log('No auth URL in output, triggering login...');
                         const { url: authUrl, emitter: loginEmitter } = await this.claudeService.triggerLogin();
+                        loginEmitter.on('pty_output', (output) => {
+                            if (output) {
+                                this.sendMessage(client, {
+                                    type: 'pty_output',
+                                    sessionId,
+                                    content: output,
+                                });
+                            }
+                        });
                         loginEmitter.on('auth_success', () => {
                             this.logger.log('Auth success received during execute, notifying client');
                             this.sendMessage(client, {
@@ -179,12 +194,23 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                                 message: 'Successfully authenticated with Claude!',
                             });
                         });
-                        this.sendMessage(client, {
-                            type: 'auth_required',
-                            sessionId,
-                            authUrl: authUrl || '',
-                            message: 'Please authenticate with Claude to continue.',
+                        loginEmitter.on('auth_failed', (reason) => {
+                            this.logger.log(`Auth failed during execute: ${reason}`);
+                            this.sendError(client, sessionId, 'AUTH_FAILED', reason);
                         });
+                        this.sendMessage(client, {
+                            type: 'login_interactive',
+                            sessionId,
+                            message: 'Claude login started. Type /login to authenticate.',
+                        });
+                        if (authUrl) {
+                            this.sendMessage(client, {
+                                type: 'auth_required',
+                                sessionId,
+                                authUrl: authUrl,
+                                message: 'Please authenticate with Claude to continue.',
+                            });
+                        }
                     }
                     else {
                         this.sendMessage(client, {
@@ -271,6 +297,21 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
             return;
         }
         try {
+            const loginEmitter = this.claudeService.getLoginEmitter();
+            if (loginEmitter) {
+                loginEmitter.on('auth_success', () => {
+                    this.logger.log('Auth success after code submission');
+                    this.sendMessage(client, {
+                        type: 'auth_success',
+                        sessionId: '',
+                        message: 'Successfully authenticated with Claude!',
+                    });
+                });
+                loginEmitter.on('auth_failed', (reason) => {
+                    this.logger.log(`Auth failed after code submission: ${reason}`);
+                    this.sendError(client, '', 'AUTH_FAILED', reason);
+                });
+            }
             const success = await this.claudeService.submitAuthCode(code);
             if (success) {
                 this.sendMessage(client, {
@@ -285,6 +326,70 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         }
         catch (error) {
             this.sendError(client, '', 'CODE_SUBMIT_FAILED', error.message);
+        }
+    }
+    async handleStartInteractive(client, data) {
+        const { sessionId, projectPath } = data;
+        this.logger.log(`Starting interactive session ${sessionId} for project: ${projectPath}`);
+        try {
+            client.sessionIds.add(sessionId);
+            this.sendMessage(client, {
+                type: 'status',
+                sessionId,
+                status: 'running',
+            });
+            const emitter = await this.claudeService.startInteractiveSession(sessionId, projectPath);
+            emitter.on('pty_output', (output) => {
+                if (output) {
+                    this.sendMessage(client, {
+                        type: 'pty_output',
+                        sessionId,
+                        content: output,
+                    });
+                }
+            });
+            emitter.on('output', (output) => {
+                if (output.type === 'auth_required') {
+                    this.sendMessage(client, {
+                        type: 'auth_required',
+                        sessionId,
+                        authUrl: output.authUrl,
+                        message: output.content || 'Authentication required',
+                    });
+                }
+                else if (output.type === 'exit') {
+                    this.sendMessage(client, {
+                        type: 'status',
+                        sessionId,
+                        status: 'idle',
+                    });
+                }
+            });
+            this.sendMessage(client, {
+                type: 'interactive_started',
+                sessionId,
+                message: 'Interactive Claude session started',
+            });
+        }
+        catch (error) {
+            this.sendError(client, sessionId, 'START_INTERACTIVE_FAILED', error.message);
+        }
+    }
+    handlePtyInput(client, data) {
+        const { sessionId, input } = data;
+        this.logger.log(`PTY input received: ${input.substring(0, 50)}`);
+        if (!input) {
+            return;
+        }
+        let success;
+        if (sessionId) {
+            success = this.claudeService.sendSessionPtyInput(sessionId, input);
+        }
+        else {
+            success = this.claudeService.sendPtyInput(input);
+        }
+        if (!success) {
+            this.sendError(client, sessionId || '', 'PTY_INPUT_FAILED', 'No active PTY session to send input to.');
         }
     }
     handlePing(client) {

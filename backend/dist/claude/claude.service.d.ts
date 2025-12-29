@@ -31,10 +31,15 @@ export declare class ClaudeService implements OnModuleInit {
     }>;
     submitAuthCode(code: string): Promise<boolean>;
     getLoginEmitter(): EventEmitter | null;
+    sendPtyInput(input: string): boolean;
+    sendSessionPtyInput(sessionId: string, input: string): boolean;
+    startInteractiveSession(sessionId: string, projectPath: string): Promise<EventEmitter>;
     initSession(sessionId: string, projectPath: string): Promise<void>;
     execute(sessionId: string, prompt: string, projectPath: string): Promise<EventEmitter>;
     private parseClaudeOutput;
     private detectOutputType;
+    private stripAnsiAndControl;
+    private extractClaudeResponse;
     private extractAuthUrl;
     stopSession(sessionId: string): Promise<void>;
     destroySession(sessionId: string): void;

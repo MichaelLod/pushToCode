@@ -151,50 +151,100 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         return new Promise((resolve) => {
             let output = '';
             let foundUrl = null;
-            const ptyProcess = pty.spawn('claude', ['setup-token'], {
+            const ptyProcess = pty.spawn('claude', ['login'], {
                 name: 'xterm-256color',
                 cols: 120,
                 rows: 30,
                 cwd: '/tmp',
                 env: {
                     ...process.env,
-                    FORCE_COLOR: '1',
                     TERM: 'xterm-256color',
+                    FORCE_COLOR: '1',
                 },
             });
             this.loginPtyProcess = ptyProcess;
             this.logger.log(`PTY login process spawned with PID: ${ptyProcess.pid}`);
+            let readyForCode = false;
+            let authSuccessEmitted = false;
+            let killedByTimeout = false;
+            let lastEnterPress = 0;
             ptyProcess.onData((data) => {
                 output += data;
-                const cleanData = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+                const cleanData = this.stripAnsiAndControl(data);
                 if (cleanData) {
                     this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
+                    emitter.emit('pty_output', cleanData);
+                }
+                const isOnboardingPrompt = (cleanData.includes('Dark mode') ||
+                    cleanData.includes('Light mode') ||
+                    cleanData.includes('Choose the text style') ||
+                    cleanData.includes('Let\'s get started') ||
+                    cleanData.includes('Ready to code here') ||
+                    cleanData.includes('Yes, continue') ||
+                    /[❯>]\s*\d+\.\s*(Yes|Dark|Light)/i.test(cleanData));
+                const isAuthCodePrompt = (cleanData.includes('Paste your') ||
+                    cleanData.includes('Enter the code') ||
+                    cleanData.includes('authorization code') ||
+                    cleanData.includes('console.anthropic.com'));
+                const now = Date.now();
+                if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
+                    this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
+                    lastEnterPress = now;
+                    setTimeout(() => {
+                        if (this.loginPtyProcess === ptyProcess) {
+                            ptyProcess.write('\r');
+                        }
+                    }, 500);
+                }
+                if (cleanData.includes('Paste your') ||
+                    cleanData.includes('Enter the code') ||
+                    cleanData.includes('paste the code') ||
+                    cleanData.includes('authorization code')) {
+                    this.logger.log('PTY is ready for auth code input');
+                    readyForCode = true;
                 }
                 const url = this.extractAuthUrl(data);
                 if (url && !foundUrl) {
                     foundUrl = url;
                     this.pendingAuthUrl = url;
                     this.logger.log(`Found auth URL: ${url}`);
+                    readyForCode = true;
                     resolve({ url, emitter });
                 }
-                if (cleanData.includes('Successfully authenticated') ||
+                if (!authSuccessEmitted && (cleanData.includes('Successfully authenticated') ||
                     cleanData.includes('Authentication successful') ||
-                    cleanData.includes('logged in')) {
+                    cleanData.includes('Logged in as'))) {
                     this.logger.log('Authentication successful!');
                     this.isAuthenticated = true;
                     this.pendingAuthUrl = null;
+                    authSuccessEmitted = true;
                     emitter.emit('auth_success');
+                }
+                if (cleanData.includes('OAuth error') ||
+                    cleanData.includes('Invalid code') ||
+                    cleanData.includes('expired')) {
+                    this.logger.warn(`Auth error detected: ${cleanData.substring(0, 100)}`);
+                    emitter.emit('auth_failed', cleanData);
                 }
             });
             ptyProcess.onExit(({ exitCode }) => {
-                this.logger.log(`PTY login process exited with code ${exitCode}`);
+                this.logger.log(`PTY login process exited with code ${exitCode}, killedByTimeout: ${killedByTimeout}`);
                 this.loginPtyProcess = null;
-                if (exitCode === 0) {
+                if (killedByTimeout) {
+                    this.logger.log('Process was killed by timeout, not emitting auth_success');
+                    if (!foundUrl) {
+                        resolve({ url: null, emitter });
+                    }
+                    return;
+                }
+                if (exitCode === 0 && !authSuccessEmitted && foundUrl) {
+                    this.logger.log('Authentication successful based on exit code 0');
                     this.isAuthenticated = true;
                     this.pendingAuthUrl = null;
+                    authSuccessEmitted = true;
                     emitter.emit('auth_success');
                 }
-                else {
+                else if (exitCode !== 0) {
                     emitter.emit('auth_failed', `Process exited with code ${exitCode}`);
                 }
                 if (!foundUrl) {
@@ -205,11 +255,12 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             setTimeout(() => {
                 if (!foundUrl) {
                     this.logger.warn(`PTY timeout - no auth URL found. Output: ${output.substring(0, 500)}`);
+                    killedByTimeout = true;
                     ptyProcess.kill();
                     this.loginPtyProcess = null;
                     resolve({ url: null, emitter });
                 }
-            }, 10000);
+            }, 60000);
         });
     }
     async submitAuthCode(code) {
@@ -219,7 +270,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return false;
         }
         try {
-            this.loginPtyProcess.write(code + '\r');
+            const cleanCode = code.trim();
+            this.logger.log(`Clean code length: ${cleanCode.length}`);
+            this.loginPtyProcess.write(cleanCode + '\n');
             this.logger.log('Auth code submitted to PTY');
             return true;
         }
@@ -231,6 +284,141 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
     getLoginEmitter() {
         return this.loginEmitter;
     }
+    sendPtyInput(input) {
+        if (!this.loginPtyProcess) {
+            this.logger.error('No active login PTY process');
+            return false;
+        }
+        try {
+            this.logger.log(`Sending PTY input: ${input.substring(0, 50)}`);
+            this.loginPtyProcess.write(input);
+            return true;
+        }
+        catch (error) {
+            this.logger.error(`Failed to send PTY input: ${error.message}`);
+            return false;
+        }
+    }
+    sendSessionPtyInput(sessionId, input) {
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            this.logger.error(`Session ${sessionId} not found`);
+            return false;
+        }
+        if (!session.ptyProcess) {
+            this.logger.error(`No active PTY for session ${sessionId}`);
+            return false;
+        }
+        try {
+            const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
+            this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
+            const textOnly = input.replace(/[\r\n]+$/, '');
+            this.logger.log(`Sending plain text: "${textOnly}" + carriage return`);
+            session.ptyProcess.write(textOnly);
+            session.ptyProcess.write('\r');
+            this.logger.log(`PTY input sent successfully`);
+            return true;
+        }
+        catch (error) {
+            this.logger.error(`Failed to send PTY input: ${error.message}`);
+            return false;
+        }
+    }
+    async startInteractiveSession(sessionId, projectPath) {
+        this.logger.log(`Starting interactive session ${sessionId} for project: ${projectPath}`);
+        let session = this.sessions.get(sessionId);
+        if (!session) {
+            const emitter = new events_1.EventEmitter();
+            session = {
+                process: null,
+                emitter,
+                projectPath,
+                ptyBuffer: '',
+                lastSentLength: 0,
+            };
+            this.sessions.set(sessionId, session);
+        }
+        if (session.ptyProcess) {
+            this.logger.log(`Killing existing PTY for session ${sessionId}`);
+            session.ptyProcess.kill();
+            session.ptyProcess = undefined;
+        }
+        session.ptyBuffer = '';
+        session.lastSentLength = 0;
+        const emitter = session.emitter;
+        if (this.pendingAuthUrl) {
+            this.logger.log('Auth pending, but still spawning PTY for /login command');
+        }
+        const fs = await import('fs');
+        let workingDir = '/tmp';
+        try {
+            if (fs.existsSync(projectPath)) {
+                workingDir = projectPath;
+                this.logger.log(`Using provided project path: ${workingDir}`);
+            }
+            else {
+                this.logger.log(`Project path ${projectPath} doesn't exist, using /tmp`);
+            }
+        }
+        catch (err) {
+            this.logger.warn(`Error checking path ${projectPath}: ${err.message}`);
+        }
+        const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
+            name: 'xterm-256color',
+            cols: 120,
+            rows: 30,
+            cwd: workingDir,
+            env: {
+                ...process.env,
+                TERM: 'xterm-256color',
+                FORCE_COLOR: '1',
+            },
+        });
+        session.ptyProcess = ptyProcess;
+        this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
+        ptyProcess.onData((data) => {
+            session.ptyBuffer += data;
+            const cleanBuffer = this.stripAnsiAndControl(session.ptyBuffer);
+            if (cleanBuffer.length > session.lastSentLength) {
+                const delta = cleanBuffer.substring(session.lastSentLength);
+                session.lastSentLength = cleanBuffer.length;
+                if (delta.trim()) {
+                    this.logger.log(`Session ${sessionId} delta: ${delta.substring(0, 100)}`);
+                    emitter.emit('pty_output', delta);
+                }
+            }
+            const authUrl = this.extractAuthUrl(data);
+            if (authUrl) {
+                this.pendingAuthUrl = authUrl;
+                this.isAuthenticated = false;
+                this.logger.log(`Auth URL detected in interactive session: ${authUrl}`);
+                emitter.emit('output', {
+                    type: 'auth_required',
+                    content: 'Claude requires authentication',
+                    authUrl,
+                });
+            }
+            const rawText = this.stripAnsiAndControl(data);
+            if (rawText.includes('Successfully authenticated') ||
+                rawText.includes('Authentication successful') ||
+                rawText.includes('Logged in as')) {
+                this.logger.log('Authentication successful in interactive session!');
+                this.isAuthenticated = true;
+                this.pendingAuthUrl = null;
+                emitter.emit('auth_success');
+            }
+        });
+        ptyProcess.onExit(({ exitCode }) => {
+            this.logger.log(`Session ${sessionId} PTY exited with code ${exitCode}`);
+            session.ptyProcess = undefined;
+            emitter.emit('output', {
+                type: 'exit',
+                code: exitCode,
+                isFinal: true,
+            });
+        });
+        return emitter;
+    }
     async initSession(sessionId, projectPath) {
         if (this.sessions.has(sessionId)) {
             this.logger.warn(`Session ${sessionId} already exists, cleaning up`);
@@ -241,6 +429,8 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             process: null,
             emitter,
             projectPath,
+            ptyBuffer: '',
+            lastSentLength: 0,
         });
         this.logger.log(`Session ${sessionId} initialized for project: ${projectPath}`);
     }
@@ -466,19 +656,79 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         }
         return 'text';
     }
+    stripAnsiAndControl(data) {
+        return data
+            .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+            .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '')
+            .replace(/\x1b\][^\x07]*\x07/g, '')
+            .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '')
+            .replace(/\x1b[\(\)][AB012]/g, '')
+            .replace(/\x1b[=>]/g, '')
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            .replace(/[╭╮╯╰│├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓·•●○◦◘◙►◄▲▼◢◣◤◥★☆✓✗✘✔✕✖⏺⏸⏹⏵⏴◐◑◒◓⬤⬡⬢⬣]/g, '')
+            .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '')
+            .replace(/^[\s─═\-=]+$/gm, '')
+            .replace(/\n{3,}/g, '\n\n');
+    }
+    extractClaudeResponse(data) {
+        const cleaned = this.stripAnsiAndControl(data);
+        const uiPatterns = [
+            /^Claude Code v[\d.]+/,
+            /^Tips for getting started/,
+            /^Welcome back/,
+            /^\s*Organization\s*$/,
+            /^Model:/,
+            /^Context:/,
+            /^\s*>\s*$/,
+            /^>\s+\S/,
+            /esc to interrupt/i,
+            /Enchanting/,
+            /Thinking/,
+            /bypass permissions/i,
+            /shift\+tab to cycle/i,
+            /Tip:/i,
+            /Did you know/i,
+            /drag and drop/i,
+            /Recent activity/i,
+            /No recent/i,
+            /↵\s*send/i,
+            /UserPromptSubmit hook/i,
+            /^\*\s*[▛▜▝▘▙▟]\s*\*/,
+            /^\s*\*\s+\*\s*$/,
+            /cycle\)$/,
+        ];
+        const lines = cleaned.split('\n').filter(line => {
+            const trimmed = line.trim();
+            if (!trimmed)
+                return false;
+            for (const pattern of uiPatterns) {
+                if (pattern.test(trimmed))
+                    return false;
+            }
+            return true;
+        });
+        const result = lines.join('\n').trim();
+        return result || null;
+    }
     extractAuthUrl(content) {
+        const cleanContent = this.stripAnsiAndControl(content);
         const urlPatterns = [
-            /https:\/\/[^\s]+(?:login|auth|oauth|code)[^\s]*/gi,
+            /https:\/\/console\.anthropic\.com[^\s]*/gi,
+            /https:\/\/[^\s]+(?:login|auth|oauth|code|device)[^\s]*/gi,
             /(?:visit|open|go to|navigate to)[:\s]+([^\s]+)/gi,
             /https:\/\/[^\s]*anthropic\.com[^\s]*/gi,
             /https:\/\/[^\s]*claude\.ai[^\s]*/gi,
         ];
         for (const pattern of urlPatterns) {
-            const match = content.match(pattern);
+            const match = cleanContent.match(pattern);
             if (match) {
-                let url = match[0].replace(/[.,;:!?)"'\]]+$/, '');
+                let url = match[0]
+                    .replace(/[.,;:!?)"'\]]+$/, '')
+                    .replace(/[\x00-\x1f\x7f-\x9f]/g, '');
                 if (match[1]) {
-                    url = match[1].replace(/[.,;:!?)"'\]]+$/, '');
+                    url = match[1]
+                        .replace(/[.,;:!?)"'\]]+$/, '')
+                        .replace(/[\x00-\x1f\x7f-\x9f]/g, '');
                 }
                 if (url.startsWith('https://')) {
                     try {
@@ -497,6 +747,11 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         if (!session) {
             this.logger.warn(`Attempted to stop non-existent session ${sessionId}`);
             return;
+        }
+        if (session.ptyProcess) {
+            this.logger.log(`Stopping PTY for session ${sessionId}`);
+            session.ptyProcess.kill();
+            session.ptyProcess = undefined;
         }
         if (session.process && !session.process.killed) {
             this.logger.log(`Stopping session ${sessionId}`);

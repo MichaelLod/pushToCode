@@ -20,6 +20,8 @@ interface SessionData {
   projectPath: string;
   claudeSessionId?: string;  // Claude's internal session ID for --resume
   ptyProcess?: pty.IPty;     // Interactive PTY process
+  ptyBuffer: string;         // Accumulated PTY output
+  lastSentLength: number;    // Track what we've already sent to iOS
 }
 
 @Injectable()
@@ -376,16 +378,21 @@ export class ClaudeService implements OnModuleInit {
         process: null as any,
         emitter,
         projectPath,
+        ptyBuffer: '',
+        lastSentLength: 0,
       };
       this.sessions.set(sessionId, session);
     }
 
-    // Kill existing PTY if running
+    // Kill existing PTY if running and reset buffer
     if (session.ptyProcess) {
       this.logger.log(`Killing existing PTY for session ${sessionId}`);
       session.ptyProcess.kill();
       session.ptyProcess = undefined;
     }
+    // Reset buffer for fresh session
+    session.ptyBuffer = '';
+    session.lastSentLength = 0;
 
     const emitter = session.emitter;
 
@@ -427,11 +434,21 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
 
     ptyProcess.onData((data: string) => {
-      // Extract only meaningful content (skip UI decorations)
-      const cleanData = this.extractClaudeResponse(data);
-      if (cleanData) {
-        this.logger.log(`Session ${sessionId} output: ${cleanData.substring(0, 150)}`);
-        emitter.emit('pty_output', cleanData);
+      // Accumulate raw PTY output
+      session.ptyBuffer += data;
+
+      // Strip ANSI codes for clean output
+      const cleanBuffer = this.stripAnsiAndControl(session.ptyBuffer);
+
+      // Only send the delta (new content since last send)
+      if (cleanBuffer.length > session.lastSentLength) {
+        const delta = cleanBuffer.substring(session.lastSentLength);
+        session.lastSentLength = cleanBuffer.length;
+
+        if (delta.trim()) {
+          this.logger.log(`Session ${sessionId} delta: ${delta.substring(0, 100)}`);
+          emitter.emit('pty_output', delta);
+        }
       }
 
       // Check for auth URL in PTY output (when user types /login)
@@ -447,8 +464,7 @@ export class ClaudeService implements OnModuleInit {
         });
       }
 
-
-      // Check for successful authentication (use raw data, not filtered)
+      // Check for successful authentication
       const rawText = this.stripAnsiAndControl(data);
       if (rawText.includes('Successfully authenticated') ||
           rawText.includes('Authentication successful') ||
@@ -484,6 +500,8 @@ export class ClaudeService implements OnModuleInit {
       process: null as any,
       emitter,
       projectPath,
+      ptyBuffer: '',
+      lastSentLength: 0,
     });
 
     this.logger.log(
