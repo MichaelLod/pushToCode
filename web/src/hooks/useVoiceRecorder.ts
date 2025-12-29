@@ -283,9 +283,17 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
           const ext = extMap[recorderMimeType] || "webm";
           const filename = `audio.${ext}`;
 
-          const baseUrl = options?.serverUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+          // Convert WebSocket URL to HTTP for API calls
+          let baseUrl = options?.serverUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+          if (baseUrl.startsWith("ws://")) {
+            baseUrl = baseUrl.replace("ws://", "http://");
+          } else if (baseUrl.startsWith("wss://")) {
+            baseUrl = baseUrl.replace("wss://", "https://");
+          }
+          console.log("[VoiceRecorder] Transcribing to:", baseUrl);
           const apiClient = getApiClient({ baseUrl, apiKey: options?.apiKey });
           const response = await apiClient.transcribe(audioBlob, filename);
+          console.log("[VoiceRecorder] Transcription response:", response);
 
           setState((prev) => ({
             ...prev,
@@ -296,6 +304,7 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
           cleanup();
           resolve(response);
         } catch (err) {
+          console.error("[VoiceRecorder] Transcription error:", err);
           const errorMessage =
             err instanceof Error ? err.message : "Transcription failed";
           setState((prev) => ({
