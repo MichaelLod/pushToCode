@@ -347,16 +347,21 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
+      // Convert \r to \n for Unix PTY - Claude CLI expects Unix newline
+      const unixInput = input.replace(/\r/g, '\n');
+      const debugUnixInput = unixInput.replace(/\n/g, '\\n');
+      this.logger.log(`Converted to Unix newline: "${debugUnixInput}"`);
+
       // Check if this is a slash command (starts with /)
       // Claude CLI shows autocomplete for these - need double-Enter:
       // 1st Enter confirms autocomplete selection, 2nd Enter executes
-      const trimmedInput = input.replace(/\r$/, ''); // Remove trailing \r for check
+      const trimmedInput = input.replace(/[\r\n]+$/, ''); // Remove trailing newlines for check
       const isSlashCommand = trimmedInput.startsWith('/');
 
       if (isSlashCommand) {
         this.logger.log(`Detected slash command: ${trimmedInput}, sending with double-Enter`);
         // Send command + Enter to confirm autocomplete selection
-        session.ptyProcess.write(input);
+        session.ptyProcess.write(unixInput);
         this.logger.log(`First write complete (command + Enter)`);
         // After delay, send second Enter to execute the command
         // Use 200ms to ensure autocomplete has time to process
@@ -364,15 +369,15 @@ export class ClaudeService implements OnModuleInit {
           const currentSession = this.sessions.get(sessionId);
           if (currentSession?.ptyProcess) {
             this.logger.log(`Sending second Enter for slash command execution`);
-            currentSession.ptyProcess.write('\r');
+            currentSession.ptyProcess.write('\n');
             this.logger.log(`Second Enter sent`);
           } else {
             this.logger.warn(`PTY no longer active for second Enter`);
           }
         }, 200);
       } else {
-        // Regular input - just send as-is
-        session.ptyProcess.write(input);
+        // Regular input - send with Unix newline
+        session.ptyProcess.write(unixInput);
       }
 
       this.logger.log(`PTY input sent successfully`);
