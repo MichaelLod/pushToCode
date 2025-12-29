@@ -287,9 +287,8 @@ final class TerminalViewModel: ObservableObject {
         let userMessage = Message(role: .user, content: trimmedInput)
         session.addMessage(userMessage)
 
-        // Send input, then ESC to dismiss autocomplete, then Enter to execute
-        // ESC (\u{1b}) after the command cancels any autocomplete menu that appeared while typing
-        webSocketService.sendPtyInput(trimmedInput + "\u{1b}" + "\r", sessionId: session.id)
+        // Send input with Enter - backend handles command logic
+        webSocketService.sendPtyInput(trimmedInput + "\r", sessionId: session.id)
     }
 
     func triggerLogin() {
