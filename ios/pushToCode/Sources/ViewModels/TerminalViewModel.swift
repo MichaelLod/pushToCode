@@ -284,6 +284,13 @@ final class TerminalViewModel: ObservableObject {
             session.status = .running
         }
 
+        // Detect screen clear sequences and reset buffer
+        // Claude CLI sends these when redrawing the TUI
+        if content.contains("\u{1b}[2J") || content.contains("\u{1b}[H\u{1b}[J") {
+            ptyOutput = ""
+            parser.reset()
+        }
+
         // Accumulate PTY output for terminal display
         ptyOutput += content
 
