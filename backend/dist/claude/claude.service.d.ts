@@ -40,6 +40,7 @@ export declare class ClaudeService implements OnModuleInit {
     private detectOutputType;
     private stripAnsiAndControl;
     private extractClaudeResponse;
+    private filterProcessingSpam;
     private extractAuthUrl;
     stopSession(sessionId: string): Promise<void>;
     destroySession(sessionId: string): void;

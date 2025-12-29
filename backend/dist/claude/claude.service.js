@@ -382,8 +382,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         session.ptyProcess = ptyProcess;
         this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
         ptyProcess.onData((data) => {
-            if (data) {
-                emitter.emit('pty_output', data);
+            const filteredData = this.filterProcessingSpam(data, session);
+            if (filteredData) {
+                emitter.emit('pty_output', filteredData);
             }
             const authUrl = this.extractAuthUrl(data);
             if (authUrl) {
@@ -700,6 +701,23 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         const result = lines.join('\n').trim();
         return result || null;
+    }
+    filterProcessingSpam(data, session) {
+        const cleanData = this.stripAnsiAndControl(data).trim();
+        const pureSpinnerPattern = /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏▁▂▃▄▅▆▇█]+$/;
+        const isPureSpinner = pureSpinnerPattern.test(cleanData);
+        const now = Date.now();
+        if (isPureSpinner) {
+            if (session.isProcessing && session.lastProcessingTime && (now - session.lastProcessingTime < 500)) {
+                return null;
+            }
+            session.isProcessing = true;
+            session.lastProcessingTime = now;
+        }
+        else if (cleanData.length > 0) {
+            session.isProcessing = false;
+        }
+        return data;
     }
     extractAuthUrl(content) {
         const cleanContent = this.stripAnsiAndControl(content);

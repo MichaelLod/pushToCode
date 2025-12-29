@@ -851,34 +851,26 @@ export class ClaudeService implements OnModuleInit {
   }
 
   // Filter out processing/spinner spam - returns null if should be skipped
+  // Only filters pure spinner lines, not real content
   private filterProcessingSpam(data: string, session: SessionData): string | null {
-    const cleanData = this.stripAnsiAndControl(data);
+    const cleanData = this.stripAnsiAndControl(data).trim();
 
-    // Patterns that indicate processing/loading states
-    const processingPatterns = [
-      /contemplating/i,             // Claude's thinking indicator
-      /processing/i,
-      /thinking/i,
-      /working/i,
-      /loading/i,
-      /esc to interrupt/i,          // Status line indicator
-      /⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/,  // Spinner characters
-      /[▁▂▃▄▅▆▇█▇▆▅▄▃▂▁]/,        // Progress bar characters
-      /\.\.\./,                     // Ellipsis animation
-    ];
+    // Only filter if the line is PURELY a spinner character (nothing else)
+    // This preserves real content like "Inferring..." or status messages
+    const pureSpinnerPattern = /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏▁▂▃▄▅▆▇█]+$/;
+    const isPureSpinner = pureSpinnerPattern.test(cleanData);
 
-    const isProcessingLine = processingPatterns.some(p => p.test(cleanData));
     const now = Date.now();
 
-    if (isProcessingLine) {
-      // If already processing, throttle updates to max 1 per 500ms
+    if (isPureSpinner) {
+      // If already showing spinner, throttle updates to max 1 per 500ms
       if (session.isProcessing && session.lastProcessingTime && (now - session.lastProcessingTime < 500)) {
         return null; // Skip this update
       }
       session.isProcessing = true;
       session.lastProcessingTime = now;
-    } else if (cleanData.trim().length > 0) {
-      // Non-processing content - reset state
+    } else if (cleanData.length > 0) {
+      // Real content - reset processing state
       session.isProcessing = false;
     }
 
