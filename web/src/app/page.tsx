@@ -120,7 +120,7 @@ export default function Home() {
       send({
         type: "pty_input",
         sessionId: currentSession.id,
-        data: text + "\n",
+        data: text + "\r",
       });
     },
     [currentSession, isConnected, send]

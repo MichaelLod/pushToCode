@@ -67,6 +67,14 @@ export interface SubmitAuthCodeMessage {
   code: string;
 }
 
+export interface UploadFileMessage {
+  type: "upload_file";
+  sessionId: string;
+  filename: string;
+  mimeType: string;
+  data: string; // base64 encoded
+}
+
 export type ClientMessage =
   | InitSessionMessage
   | ExecuteMessage
@@ -76,7 +84,8 @@ export type ClientMessage =
   | PtyInputMessage
   | LoginMessage
   | StartInteractiveMessage
-  | SubmitAuthCodeMessage;
+  | SubmitAuthCodeMessage
+  | UploadFileMessage;
 
 // ============================================
 // Server -> Client Messages
@@ -94,7 +103,8 @@ export type ServerMessageType =
   | "auth_failed"
   | "pty_output"
   | "login_interactive"
-  | "interactive_started";
+  | "interactive_started"
+  | "file_uploaded";
 
 export interface SessionReadyMessage {
   type: "session_ready";
