@@ -97,6 +97,9 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     fetchRepos();
   }, [fetchRepos]);
 
+  // Track if connection has been verified
+  const [connectionVerified, setConnectionVerified] = useState(false);
+
   // Fetch available GitHub repos
   const fetchGithubRepos = useCallback(async () => {
     setGithubLoading(true);
@@ -113,10 +116,12 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     }
   }, [getClient]);
 
-  // Fetch GitHub repos on mount
+  // Only fetch GitHub repos after connection is verified
   useEffect(() => {
-    fetchGithubRepos();
-  }, [fetchGithubRepos]);
+    if (connectionVerified) {
+      fetchGithubRepos();
+    }
+  }, [connectionVerified, fetchGithubRepos]);
 
   // Clone a repository
   const handleCloneRepo = useCallback(async (url: string, name: string) => {
@@ -261,14 +266,17 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
       if (wsTest.success) {
         setTestStatus("success");
         setTestMessage(response.version ? `Connected (v${response.version})` : "Connected");
+        setConnectionVerified(true);
       } else {
         setTestStatus("error");
         setTestMessage(wsTest.error || "WebSocket connection failed");
+        setConnectionVerified(false);
       }
     } catch (error) {
       console.error("[Settings] Connection error:", error);
       setTestStatus("error");
       setTestMessage(error instanceof Error ? error.message : "Connection failed");
+      setConnectionVerified(false);
     }
   }, [localServerUrl, localApiKey, validateServerUrl]);
 
@@ -530,14 +538,21 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
                 </label>
                 <button
                   onClick={fetchGithubRepos}
-                  disabled={githubLoading}
+                  disabled={githubLoading || !connectionVerified}
                   className="text-xs text-accent hover:underline disabled:opacity-50"
                 >
                   {githubLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
 
-              {githubError ? (
+              {!connectionVerified ? (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-text-secondary">Test connection to load repositories</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    Click &quot;Test Connection&quot; above to verify server settings
+                  </p>
+                </div>
+              ) : githubError ? (
                 <div className="p-4 rounded-lg bg-bg-primary text-center">
                   <p className="text-sm text-error">{githubError}</p>
                   <p className="text-xs text-text-secondary mt-1">
@@ -973,6 +988,19 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   /* eslint-enable react-hooks/refs */
 
   if (!isOpen) return null;
+
+  // Wait for settings to load from localStorage before rendering
+  // This prevents showing default values that get overwritten
+  if (!settings.isLoaded) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/50 z-40" aria-hidden="true" />
+        <div className="fixed z-50 bg-bg-secondary inset-0 md:inset-y-0 md:right-0 md:left-auto md:w-96 flex items-center justify-center">
+          <p className="text-text-secondary">Loading settings...</p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <SettingsContent
