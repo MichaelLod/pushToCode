@@ -408,15 +408,10 @@ export class ClaudeService implements OnModuleInit {
 
     const emitter = session.emitter;
 
-    // Check if we have a pending auth URL - if so, we need to login first
+    // Note: We always spawn the PTY even if auth is pending
+    // The user needs the PTY to be able to run /login command
     if (this.pendingAuthUrl) {
-      this.logger.log('Auth required, emitting auth_required event');
-      emitter.emit('output', {
-        type: 'auth_required',
-        content: 'Claude requires authentication',
-        authUrl: this.pendingAuthUrl,
-      });
-      return emitter;
+      this.logger.log('Auth pending, but still spawning PTY for /login command');
     }
 
     // Use a valid working directory on the server
