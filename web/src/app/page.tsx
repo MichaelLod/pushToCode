@@ -326,6 +326,9 @@ export default function Home() {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {/* PWA Install Banner */}
+      <InstallBanner />
     </div>
   );
 }

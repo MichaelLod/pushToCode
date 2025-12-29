@@ -11,16 +11,29 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var ReposController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReposController = void 0;
 const common_1 = require("@nestjs/common");
 const api_key_guard_1 = require("../auth/guards/api-key.guard");
 const repos_service_1 = require("./repos.service");
 const repo_dto_1 = require("./dto/repo.dto");
-let ReposController = class ReposController {
+let ReposController = ReposController_1 = class ReposController {
     reposService;
+    logger = new common_1.Logger(ReposController_1.name);
     constructor(reposService) {
         this.reposService = reposService;
+    }
+    async getAvailable() {
+        this.logger.log('GET /repos/available called');
+        try {
+            const repos = await this.reposService.getAvailableRepos();
+            return { repos, total: repos.length };
+        }
+        catch (error) {
+            this.logger.error(`Failed to get available repos: ${error.message}`);
+            throw new common_1.BadRequestException(error.message);
+        }
     }
     async clone(dto) {
         return this.reposService.clone(dto);
@@ -31,10 +44,6 @@ let ReposController = class ReposController {
             repos,
             total: repos.length,
         };
-    }
-    async getAvailable() {
-        const repos = await this.reposService.getAvailableRepos();
-        return { repos, total: repos.length };
     }
     async get(id) {
         return this.reposService.get(id);
@@ -48,6 +57,12 @@ let ReposController = class ReposController {
 };
 exports.ReposController = ReposController;
 __decorate([
+    (0, common_1.Get)('available'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ReposController.prototype, "getAvailable", null);
+__decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -60,12 +75,6 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ReposController.prototype, "list", null);
-__decorate([
-    (0, common_1.Get)('available'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], ReposController.prototype, "getAvailable", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
@@ -89,7 +98,7 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], ReposController.prototype, "pull", null);
-exports.ReposController = ReposController = __decorate([
+exports.ReposController = ReposController = ReposController_1 = __decorate([
     (0, common_1.Controller)('repos'),
     (0, common_1.UseGuards)(api_key_guard_1.ApiKeyGuard),
     __metadata("design:paramtypes", [repos_service_1.ReposService])

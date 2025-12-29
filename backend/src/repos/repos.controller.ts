@@ -8,6 +8,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { ReposService } from './repos.service';
@@ -21,7 +23,22 @@ import {
 @Controller('repos')
 @UseGuards(ApiKeyGuard)
 export class ReposController {
+  private readonly logger = new Logger(ReposController.name);
+
   constructor(private reposService: ReposService) {}
+
+  // IMPORTANT: Put specific routes BEFORE parameterized routes
+  @Get('available')
+  async getAvailable(): Promise<AvailableReposResponseDto> {
+    this.logger.log('GET /repos/available called');
+    try {
+      const repos = await this.reposService.getAvailableRepos();
+      return { repos, total: repos.length };
+    } catch (error) {
+      this.logger.error(`Failed to get available repos: ${error.message}`);
+      throw new BadRequestException(error.message);
+    }
+  }
 
   @Post()
   async clone(@Body() dto: CloneRepoDto): Promise<RepoResponseDto> {
@@ -35,12 +52,6 @@ export class ReposController {
       repos,
       total: repos.length,
     };
-  }
-
-  @Get('available')
-  async getAvailable(): Promise<AvailableReposResponseDto> {
-    const repos = await this.reposService.getAvailableRepos();
-    return { repos, total: repos.length };
   }
 
   @Get(':id')
