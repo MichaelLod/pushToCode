@@ -377,7 +377,6 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
     }
     handlePtyInput(client, data) {
         const { sessionId, input } = data;
-        this.logger.log(`PTY input received: ${input.substring(0, 50)}`);
         if (!input) {
             return;
         }

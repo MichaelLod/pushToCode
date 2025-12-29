@@ -492,7 +492,6 @@ export class ClaudeGateway
     data: { sessionId?: string; input: string },
   ): void {
     const { sessionId, input } = data;
-    this.logger.log(`PTY input received: ${input.substring(0, 50)}`);
 
     if (!input) {
       return;

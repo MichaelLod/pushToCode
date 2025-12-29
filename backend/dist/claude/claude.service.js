@@ -172,7 +172,6 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                 output += data;
                 const cleanData = this.stripAnsiAndControl(data);
                 if (cleanData) {
-                    this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
                     emitter.emit('pty_output', cleanData);
                 }
                 const isOnboardingPrompt = (cleanData.includes('Dark mode') ||
@@ -188,7 +187,6 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                     cleanData.includes('console.anthropic.com'));
                 const now = Date.now();
                 if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
-                    this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
                     lastEnterPress = now;
                     setTimeout(() => {
                         if (this.loginPtyProcess === ptyProcess) {
@@ -200,21 +198,18 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
                     cleanData.includes('Enter the code') ||
                     cleanData.includes('paste the code') ||
                     cleanData.includes('authorization code')) {
-                    this.logger.log('PTY is ready for auth code input');
                     readyForCode = true;
                 }
                 const url = this.extractAuthUrl(data);
                 if (url && !foundUrl) {
                     foundUrl = url;
                     this.pendingAuthUrl = url;
-                    this.logger.log(`Found auth URL: ${url}`);
                     readyForCode = true;
                     resolve({ url, emitter });
                 }
                 if (!authSuccessEmitted && (cleanData.includes('Successfully authenticated') ||
                     cleanData.includes('Authentication successful') ||
                     cleanData.includes('Logged in as'))) {
-                    this.logger.log('Authentication successful!');
                     this.isAuthenticated = true;
                     this.pendingAuthUrl = null;
                     authSuccessEmitted = true;
@@ -290,7 +285,6 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return false;
         }
         try {
-            this.logger.log(`Sending PTY input: ${input.substring(0, 50)}`);
             this.loginPtyProcess.write(input);
             return true;
         }
@@ -310,13 +304,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return false;
         }
         try {
-            const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
-            this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
             const textOnly = input.replace(/[\r\n]+$/, '');
-            this.logger.log(`Sending plain text: "${textOnly}" + carriage return`);
             session.ptyProcess.write(textOnly);
             session.ptyProcess.write('\r');
-            this.logger.log(`PTY input sent successfully`);
             return true;
         }
         catch (error) {
@@ -384,7 +374,6 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             if (authUrl) {
                 this.pendingAuthUrl = authUrl;
                 this.isAuthenticated = false;
-                this.logger.log(`Auth URL detected in interactive session: ${authUrl}`);
                 emitter.emit('output', {
                     type: 'auth_required',
                     content: 'Claude requires authentication',
@@ -395,14 +384,12 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             if (rawText.includes('Successfully authenticated') ||
                 rawText.includes('Authentication successful') ||
                 rawText.includes('Logged in as')) {
-                this.logger.log('Authentication successful in interactive session!');
                 this.isAuthenticated = true;
                 this.pendingAuthUrl = null;
                 emitter.emit('auth_success');
             }
         });
         ptyProcess.onExit(({ exitCode }) => {
-            this.logger.log(`Session ${sessionId} PTY exited with code ${exitCode}`);
             session.ptyProcess = undefined;
             emitter.emit('output', {
                 type: 'exit',

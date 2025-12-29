@@ -171,7 +171,6 @@ export class ClaudeService implements OnModuleInit {
         // Strip ANSI escape codes and control sequences for clean display
         const cleanData = this.stripAnsiAndControl(data);
         if (cleanData) {
-          this.logger.log(`PTY output: ${cleanData.substring(0, 200)}`);
           // Emit PTY output to iOS app so user can see everything
           emitter.emit('pty_output', cleanData);
         }
@@ -196,7 +195,6 @@ export class ClaudeService implements OnModuleInit {
         // Auto-press Enter only for onboarding menus, not for interactive prompts
         const now = Date.now();
         if (isOnboardingPrompt && !isAuthCodePrompt && !readyForCode && (now - lastEnterPress > 1000)) {
-          this.logger.log(`Detected onboarding prompt, pressing Enter. Text: ${cleanData.substring(0, 100)}`);
           lastEnterPress = now;
           setTimeout(() => {
             if (this.loginPtyProcess === ptyProcess) {
@@ -210,7 +208,6 @@ export class ClaudeService implements OnModuleInit {
             cleanData.includes('Enter the code') ||
             cleanData.includes('paste the code') ||
             cleanData.includes('authorization code')) {
-          this.logger.log('PTY is ready for auth code input');
           readyForCode = true;
         }
 
@@ -218,8 +215,6 @@ export class ClaudeService implements OnModuleInit {
         if (url && !foundUrl) {
           foundUrl = url;
           this.pendingAuthUrl = url;
-          this.logger.log(`Found auth URL: ${url}`);
-          // After finding URL, assume we'll be ready for code soon
           readyForCode = true;
           resolve({ url, emitter });
         }
@@ -229,7 +224,6 @@ export class ClaudeService implements OnModuleInit {
             cleanData.includes('Successfully authenticated') ||
             cleanData.includes('Authentication successful') ||
             cleanData.includes('Logged in as'))) {
-          this.logger.log('Authentication successful!');
           this.isAuthenticated = true;
           this.pendingAuthUrl = null;
           authSuccessEmitted = true;
@@ -323,7 +317,6 @@ export class ClaudeService implements OnModuleInit {
     }
 
     try {
-      this.logger.log(`Sending PTY input: ${input.substring(0, 50)}`);
       this.loginPtyProcess.write(input);
       return true;
     } catch (error) {
@@ -345,20 +338,12 @@ export class ClaudeService implements OnModuleInit {
     }
 
     try {
-      // Log the raw input for debugging
-      const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
-      this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
-
       // Remove any existing line endings from input
       const textOnly = input.replace(/[\r\n]+$/, '');
 
-      // Send plain text + carriage return (not bracketed paste)
-      // Claude CLI expects \r (carriage return) to submit, not \n (newline)
-      this.logger.log(`Sending plain text: "${textOnly}" + carriage return`);
+      // Send plain text + carriage return
       session.ptyProcess.write(textOnly);
       session.ptyProcess.write('\r');
-
-      this.logger.log(`PTY input sent successfully`);
       return true;
     } catch (error) {
       this.logger.error(`Failed to send PTY input: ${error.message}`);
@@ -444,7 +429,6 @@ export class ClaudeService implements OnModuleInit {
       if (authUrl) {
         this.pendingAuthUrl = authUrl;
         this.isAuthenticated = false;
-        this.logger.log(`Auth URL detected in interactive session: ${authUrl}`);
         emitter.emit('output', {
           type: 'auth_required',
           content: 'Claude requires authentication',
@@ -457,7 +441,6 @@ export class ClaudeService implements OnModuleInit {
       if (rawText.includes('Successfully authenticated') ||
           rawText.includes('Authentication successful') ||
           rawText.includes('Logged in as')) {
-        this.logger.log('Authentication successful in interactive session!');
         this.isAuthenticated = true;
         this.pendingAuthUrl = null;
         emitter.emit('auth_success');
@@ -465,7 +448,6 @@ export class ClaudeService implements OnModuleInit {
     });
 
     ptyProcess.onExit(({ exitCode }) => {
-      this.logger.log(`Session ${sessionId} PTY exited with code ${exitCode}`);
       session.ptyProcess = undefined;
       emitter.emit('output', {
         type: 'exit',
