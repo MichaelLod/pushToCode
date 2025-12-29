@@ -17,6 +17,7 @@ export default function Home() {
   const settings = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const initializedSessionsRef = useRef<Set<string>>(new Set());
+  const [sessionReinitTrigger, setSessionReinitTrigger] = useState(0);
 
   // Convert HTTP URL to WebSocket URL if needed
   const wsUrl = settings.serverUrl
@@ -61,6 +62,14 @@ export default function Home() {
         break;
       case "error":
         console.error("Server error:", message.message);
+        // Handle stale session error - clear and re-initialize
+        if (message.message?.includes("No active PTY session") ||
+            message.message?.includes("Session not found")) {
+          console.log("Session expired, re-initializing...");
+          // Clear the initialized sessions and trigger re-init
+          initializedSessionsRef.current.clear();
+          setSessionReinitTrigger(prev => prev + 1);
+        }
         break;
       case "auth_required":
         console.log("Auth required");
@@ -84,6 +93,9 @@ export default function Home() {
     }
   }, []);
 
+  // Track previous connection status for reconnect detection
+  const prevStatusRef = useRef<string>("disconnected");
+
   // WebSocket connection
   const { status, send, isConnected } = useWebSocket({
     url: wsUrl,
@@ -92,6 +104,12 @@ export default function Home() {
     onMessage: handleServerMessage,
     onStatusChange: (newStatus) => {
       console.log("WebSocket status:", newStatus);
+      // Clear initialized sessions on reconnect (was disconnected, now connected)
+      if (newStatus === "connected" && prevStatusRef.current !== "connected") {
+        console.log("WebSocket reconnected, clearing session state");
+        initializedSessionsRef.current.clear();
+      }
+      prevStatusRef.current = newStatus;
     },
   });
 
@@ -103,6 +121,7 @@ export default function Home() {
   }, [sessions.length, createSession, settings.isLoaded]);
 
   // Start interactive session on backend when connected
+  // Also re-initializes when sessionReinitTrigger changes (after session expiry)
   useEffect(() => {
     if (isConnected && currentSession && !initializedSessionsRef.current.has(currentSession.id)) {
       console.log("Starting interactive session:", currentSession.id);
@@ -114,7 +133,7 @@ export default function Home() {
         projectPath: currentSession.repoPath || "/repos", // Default to /repos
       });
     }
-  }, [isConnected, currentSession, send]);
+  }, [isConnected, currentSession, send, sessionReinitTrigger]);
 
   // Handle user input from InputBar
   const handleSendMessage = useCallback(
