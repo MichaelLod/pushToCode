@@ -48,7 +48,7 @@ final class ANSIParser {
             if char == Self.escapeChar {
                 // Flush accumulated text before processing escape sequence
                 if !currentText.isEmpty {
-                    result += createAttributedString(from: currentText)
+                    result += createAttributedStringWithLinks(from: currentText)
                     currentText = ""
                 }
 
@@ -69,7 +69,7 @@ final class ANSIParser {
 
         // Flush any remaining text
         if !currentText.isEmpty {
-            result += createAttributedString(from: currentText)
+            result += createAttributedStringWithLinks(from: currentText)
         }
 
         return result
@@ -240,5 +240,72 @@ final class ANSIParser {
         }
 
         return attributed
+    }
+
+    /// Create an AttributedString with URLs detected and made tappable
+    /// - Parameter text: The plain text content
+    /// - Returns: AttributedString with URLs as tappable links
+    private func createAttributedStringWithLinks(from text: String) -> AttributedString {
+        var result = AttributedString()
+
+        // URL regex pattern
+        let urlPattern = #"https?://[^\s\]\)\>]+"#
+
+        guard let regex = try? NSRegularExpression(pattern: urlPattern, options: []) else {
+            return createAttributedString(from: text)
+        }
+
+        let nsRange = NSRange(text.startIndex..., in: text)
+        let matches = regex.matches(in: text, options: [], range: nsRange)
+
+        var lastEndIndex = text.startIndex
+
+        for match in matches {
+            guard let range = Range(match.range, in: text) else { continue }
+
+            // Add text before the URL
+            if lastEndIndex < range.lowerBound {
+                let beforeText = String(text[lastEndIndex..<range.lowerBound])
+                result += createAttributedString(from: beforeText)
+            }
+
+            // Add the URL as a tappable link
+            let urlString = String(text[range])
+            // Clean up the URL - remove trailing punctuation that might have been captured
+            let cleanedUrl = urlString.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?)\"'"))
+
+            if let url = URL(string: cleanedUrl) {
+                var linkAttributed = AttributedString(cleanedUrl)
+                linkAttributed.link = url
+                linkAttributed.foregroundColor = TerminalTheme.linkColor
+                linkAttributed.underlineStyle = .single
+                linkAttributed.font = Self.terminalFont
+                result += linkAttributed
+
+                // If we trimmed characters, add them back as regular text
+                if cleanedUrl.count < urlString.count {
+                    let trimmedChars = String(urlString.suffix(urlString.count - cleanedUrl.count))
+                    result += createAttributedString(from: trimmedChars)
+                }
+            } else {
+                // Invalid URL, just add as regular text
+                result += createAttributedString(from: urlString)
+            }
+
+            lastEndIndex = range.upperBound
+        }
+
+        // Add any remaining text after the last URL
+        if lastEndIndex < text.endIndex {
+            let remainingText = String(text[lastEndIndex...])
+            result += createAttributedString(from: remainingText)
+        }
+
+        // If no URLs found, return regular attributed string
+        if matches.isEmpty {
+            return createAttributedString(from: text)
+        }
+
+        return result
     }
 }

@@ -20,6 +20,9 @@ struct TerminalTheme {
     /// Cursor color (bright cyan for visibility)
     static let cursorColor = Color(hex: 0x7dcfff)
 
+    /// Link color for tappable URLs
+    static let linkColor = Color(hex: 0x7aa2f7)
+
     // MARK: - Standard ANSI Colors (0-7)
 
     /// ANSI color 0: Black
