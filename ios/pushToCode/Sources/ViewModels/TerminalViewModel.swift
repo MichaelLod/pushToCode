@@ -287,25 +287,8 @@ final class TerminalViewModel: ObservableObject {
         let userMessage = Message(role: .user, content: trimmedInput)
         session.addMessage(userMessage)
 
-        // Check if this is a slash command - Claude CLI shows autocomplete menu for these
-        // BUT exclude /login which starts an interactive flow requiring user input
-        let isSlashCommand = trimmedInput.hasPrefix("/")
-        let isInteractiveCommand = trimmedInput.lowercased().hasPrefix("/login")
-
         // Send input to PTY with carriage return (terminal Enter key)
-        // Claude CLI expects \r for interactive input
         webSocketService.sendPtyInput(trimmedInput + "\r", sessionId: session.id)
-
-        // For slash commands (except interactive ones like /login), send a second
-        // carriage return after a brief delay to confirm the autocomplete selection
-        if isSlashCommand && !isInteractiveCommand {
-            Task {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
-                await MainActor.run {
-                    webSocketService.sendPtyInput("\r", sessionId: session.id)
-                }
-            }
-        }
     }
 
     func triggerLogin() {
