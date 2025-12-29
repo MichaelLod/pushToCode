@@ -38,101 +38,6 @@ export class ClaudeService implements OnModuleInit {
     await this.verifyCliInstalled();
     // Then check Claude auth status on startup
     await this.checkAuthStatus();
-    // Run startup test to verify PTY input works
-    await this.runStartupTest();
-  }
-
-  private async runStartupTest(): Promise<void> {
-    this.logger.log('=== STARTUP TEST: Testing PTY input with "Say hi" ===');
-
-    return new Promise((resolve) => {
-      const ptyProcess = pty.spawn('claude', ['--dangerously-skip-permissions'], {
-        name: 'xterm-256color',
-        cols: 120,
-        rows: 30,
-        cwd: '/tmp',
-        env: {
-          ...process.env,
-          TERM: 'xterm-256color',
-          FORCE_COLOR: '1',
-        },
-      });
-
-      this.logger.log(`[STARTUP TEST] PTY spawned with PID: ${ptyProcess.pid}`);
-
-      let isReady = false;
-      let promptSent = false;
-      let responseReceived = false;
-      let fullOutput = '';
-
-      ptyProcess.onData((data: string) => {
-        fullOutput += data;
-        const cleanData = this.stripAnsiAndControl(data);
-        if (cleanData.trim()) {
-          this.logger.log(`[STARTUP TEST] Output: ${cleanData.substring(0, 200)}`);
-        }
-
-        // Detect when Claude is ready for input (shows the input prompt)
-        if (!isReady && (cleanData.includes('bypass permissions') || cleanData.includes('>'))) {
-          isReady = true;
-          this.logger.log('[STARTUP TEST] Claude is ready for input');
-
-          // Wait a moment then send prompt
-          if (!promptSent) {
-            promptSent = true;
-            setTimeout(() => {
-              // CONFIRMED WORKING: Send text first, then carriage return separately
-              this.logger.log('[STARTUP TEST] Sending "Say hi" (text only)...');
-              ptyProcess.write('Say hi');
-
-              // Small delay, then send carriage return to submit
-              setTimeout(() => {
-                this.logger.log('[STARTUP TEST] Sending carriage return (\\r) to submit...');
-                ptyProcess.write('\r');
-              }, 100);
-
-            }, 1000);
-          }
-        }
-
-        // Detect Claude's response - look for processing/response indicators
-        if (promptSent && !responseReceived) {
-          // Look for Claude's processing indicator "Enchanting…" or response text
-          const isProcessingOrResponse =
-            cleanData.includes('Enchanting') ||  // Claude's thinking indicator
-            cleanData.includes('Thinking') ||
-            cleanData.includes('esc to interrupt') ||
-            (cleanData.toLowerCase().includes('hello') && !cleanData.includes('Claude Code')) ||
-            cleanData.toLowerCase().includes('hi there') ||
-            cleanData.toLowerCase().includes('hi!');
-
-          if (isProcessingOrResponse) {
-            responseReceived = true;
-            this.logger.log('[STARTUP TEST] SUCCESS - Claude is processing/responded!');
-            this.logger.log(`[STARTUP TEST] Output: ${cleanData.substring(0, 300)}`);
-          }
-        }
-      });
-
-      ptyProcess.onExit(({ exitCode }) => {
-        this.logger.log(`[STARTUP TEST] PTY exited with code ${exitCode}`);
-        if (!responseReceived) {
-          this.logger.warn('[STARTUP TEST] FAILED - No response received');
-          this.logger.log(`[STARTUP TEST] Full output was: ${fullOutput.substring(0, 1000)}`);
-        }
-        resolve();
-      });
-
-      // Kill after 30 seconds regardless
-      setTimeout(() => {
-        if (!responseReceived) {
-          this.logger.warn('[STARTUP TEST] Timeout - killing PTY');
-          this.logger.log(`[STARTUP TEST] Full output: ${this.stripAnsiAndControl(fullOutput).substring(0, 2000)}`);
-        }
-        ptyProcess.kill();
-        resolve();
-      }, 30000);
-    });
   }
 
   private async verifyCliInstalled(): Promise<void> {
@@ -522,14 +427,10 @@ export class ClaudeService implements OnModuleInit {
     this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}`);
 
     ptyProcess.onData((data: string) => {
-      // Log raw data for debugging (hex representation of first 100 chars)
-      const hexDebug = data.substring(0, 100).split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-      this.logger.debug(`Session ${sessionId} PTY raw (hex): ${hexDebug}`);
-
-      // Strip ANSI codes for clean text display on iOS
-      const cleanData = this.stripAnsiAndControl(data);
+      // Extract only meaningful content (skip UI decorations)
+      const cleanData = this.extractClaudeResponse(data);
       if (cleanData) {
-        this.logger.log(`Session ${sessionId} PTY: ${cleanData.substring(0, 100)}`);
+        this.logger.log(`Session ${sessionId} output: ${cleanData.substring(0, 150)}`);
         emitter.emit('pty_output', cleanData);
       }
 
@@ -875,7 +776,7 @@ export class ClaudeService implements OnModuleInit {
     return 'text';
   }
 
-  // Strip ALL ANSI escape sequences - iOS can't render them
+  // Strip ALL ANSI escape sequences and TUI decorations - iOS can't render them
   private stripAnsiAndControl(data: string): string {
     return data
       // Strip ALL ANSI escape sequences (colors, cursor, etc.)
@@ -886,7 +787,50 @@ export class ClaudeService implements OnModuleInit {
       .replace(/\x1b[\(\)][AB012]/g, '')        // Character set selection
       .replace(/\x1b[=>]/g, '')                 // Keypad mode
       // Remove other control characters except newline/tab/carriage return
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      // Remove box drawing characters and decorations
+      .replace(/[╭╮╯╰│├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬▀▄█▌▐░▒▓·•●○◦◘◙►◄▲▼◢◣◤◥★☆✓✗✘✔✕✖⏺⏸⏹⏵⏴◐◑◒◓⬤⬡⬢⬣]/g, '')
+      // Remove spinner/loading characters
+      .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '')
+      // Remove lines that are only whitespace and dashes/equals
+      .replace(/^[\s─═\-=]+$/gm, '')
+      // Collapse multiple newlines into single
+      .replace(/\n{3,}/g, '\n\n');
+  }
+
+  // Extract only meaningful content from Claude's output
+  private extractClaudeResponse(data: string): string | null {
+    const cleaned = this.stripAnsiAndControl(data);
+
+    // Skip UI-only output (banners, status bars, etc.)
+    const uiPatterns = [
+      /^Claude Code v[\d.]+/,
+      /^Tips for getting started/,
+      /^Welcome back/,
+      /^\s*Organization\s*$/,
+      /^Model:/,
+      /^Context:/,
+      /^\s*>\s*$/,  // Empty prompt
+      /esc to interrupt/,
+      /Enchanting/,
+      /Thinking/,
+    ];
+
+    // If it matches UI patterns and has no substantial content, skip it
+    const lines = cleaned.split('\n').filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+
+      // Skip lines that are just UI elements
+      for (const pattern of uiPatterns) {
+        if (pattern.test(trimmed)) return false;
+      }
+
+      return true;
+    });
+
+    const result = lines.join('\n').trim();
+    return result || null;
   }
 
   private extractAuthUrl(content: string): string | null {
