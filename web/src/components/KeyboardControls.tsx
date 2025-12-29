@@ -14,9 +14,22 @@ interface KeyButton {
   width?: "normal" | "wide";
 }
 
+// Map key names to terminal escape sequences
+const KEY_SEQUENCES: Record<string, string> = {
+  Escape: "\x1b",
+  Tab: "\t",
+  Enter: "\r",
+  ArrowUp: "\x1b[A",
+  ArrowDown: "\x1b[B",
+  ArrowLeft: "\x1b[D",
+  ArrowRight: "\x1b[C",
+  "Control+c": "\x03",
+};
+
 const KEYBOARD_KEYS: KeyButton[] = [
   { key: "Escape", label: "Esc" },
   { key: "Tab", label: "Tab" },
+  { key: "Enter", label: "Enter", width: "wide" },
   { key: "ArrowUp", label: "\u2191" },
   { key: "ArrowDown", label: "\u2193" },
   { key: "ArrowLeft", label: "\u2190" },
@@ -35,7 +48,9 @@ export function KeyboardControls({
 }: KeyboardControlsProps) {
   const handleKeyClick = useCallback(
     (key: string) => {
-      onKeyPress(key);
+      // Translate key name to terminal escape sequence
+      const sequence = KEY_SEQUENCES[key] || key;
+      onKeyPress(sequence);
     },
     [onKeyPress]
   );

@@ -321,9 +321,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             return false;
         }
         try {
-            const textOnly = input.replace(/[\r\n]+$/, '');
-            session.ptyProcess.write(textOnly);
-            session.ptyProcess.write('\r');
+            session.ptyProcess.write(input);
             return true;
         }
         catch (error) {

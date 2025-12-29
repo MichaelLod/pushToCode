@@ -360,12 +360,8 @@ export class ClaudeService implements OnModuleInit {
     }
 
     try {
-      // Remove any existing line endings from input
-      const textOnly = input.replace(/[\r\n]+$/, '');
-
-      // Send plain text + carriage return
-      session.ptyProcess.write(textOnly);
-      session.ptyProcess.write('\r');
+      // Send raw input - frontend handles adding \r or \n as needed
+      session.ptyProcess.write(input);
       return true;
     } catch (error) {
       this.logger.error(`Failed to send PTY input: ${error.message}`);
