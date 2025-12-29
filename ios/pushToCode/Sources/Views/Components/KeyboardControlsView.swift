@@ -2,7 +2,6 @@ import SwiftUI
 
 struct KeyboardControlsView: View {
     let onKeyPress: (String) -> Void
-    @State private var isExpanded = false
 
     private let impactFeedback = UIImpactFeedbackGenerator(style: .light)
 
@@ -15,83 +14,61 @@ struct KeyboardControlsView: View {
     private let enterKey = "\r"
 
     var body: some View {
-        HStack(spacing: 6) {
-            // Main toggle button
+        Menu {
             Button {
                 impactFeedback.impactOccurred()
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isExpanded.toggle()
-                }
+                onKeyPress(escapeKey)
             } label: {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isExpanded ? .blue : .primary)
-                    .frame(width: 32, height: 32)
-                    .background(isExpanded ? Color.blue.opacity(0.15) : Color(.tertiarySystemBackground))
-                    .cornerRadius(16)
+                Label("ESC", systemImage: "escape")
             }
-            .accessibilityLabel("Toggle keyboard controls")
-        }
-        .overlay(alignment: .topTrailing) {
-            // Expandable keys as popup
-            if isExpanded {
-                HStack(spacing: 8) {
-                    // ESC
-                    keyButton(label: "ESC", icon: nil, key: escapeKey)
-                        .accessibilityLabel("Escape key")
 
-                    // Arrow keys
-                    keyButton(label: nil, icon: "arrow.up", key: upArrow)
-                        .accessibilityLabel("Up arrow")
+            Divider()
 
-                    keyButton(label: nil, icon: "arrow.down", key: downArrow)
-                        .accessibilityLabel("Down arrow")
-
-                    keyButton(label: nil, icon: "arrow.left", key: leftArrow)
-                        .accessibilityLabel("Left arrow")
-
-                    keyButton(label: nil, icon: "arrow.right", key: rightArrow)
-                        .accessibilityLabel("Right arrow")
-
-                    // Enter
-                    keyButton(label: "↵", icon: nil, key: enterKey)
-                        .accessibilityLabel("Return key")
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                )
-                .offset(y: -50)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity),
-                    removal: .scale(scale: 0.8, anchor: .bottom).combined(with: .opacity)
-                ))
+            Button {
+                impactFeedback.impactOccurred()
+                onKeyPress(upArrow)
+            } label: {
+                Label("Up", systemImage: "arrow.up")
             }
-        }
-    }
 
-    private func keyButton(label: String?, icon: String?, key: String) -> some View {
-        Button {
-            impactFeedback.impactOccurred()
-            onKeyPress(key)
+            Button {
+                impactFeedback.impactOccurred()
+                onKeyPress(downArrow)
+            } label: {
+                Label("Down", systemImage: "arrow.down")
+            }
+
+            Button {
+                impactFeedback.impactOccurred()
+                onKeyPress(leftArrow)
+            } label: {
+                Label("Left", systemImage: "arrow.left")
+            }
+
+            Button {
+                impactFeedback.impactOccurred()
+                onKeyPress(rightArrow)
+            } label: {
+                Label("Right", systemImage: "arrow.right")
+            }
+
+            Divider()
+
+            Button {
+                impactFeedback.impactOccurred()
+                onKeyPress(enterKey)
+            } label: {
+                Label("Enter", systemImage: "return")
+            }
         } label: {
-            Group {
-                if let icon = icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                } else if let label = label {
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                }
-            }
-            .foregroundColor(.primary)
-            .frame(minWidth: 32, minHeight: 32)
-            .background(Color(.tertiarySystemBackground))
-            .cornerRadius(16)
+            Image(systemName: "keyboard")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
+                .frame(width: 32, height: 32)
+                .background(Color(.tertiarySystemBackground))
+                .cornerRadius(16)
         }
+        .accessibilityLabel("Keyboard controls")
     }
 }
 

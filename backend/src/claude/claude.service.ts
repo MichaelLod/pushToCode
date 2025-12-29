@@ -347,11 +347,16 @@ export class ClaudeService implements OnModuleInit {
       const debugInput = input.replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\x1b/g, '\\x1b');
       this.logger.log(`Sending PTY input to session ${sessionId}: "${debugInput}"`);
 
-      // Simple approach: send text + carriage return (like pressing Enter)
-      // Remove any existing line endings, then add \r
+      // Claude Code enables bracketed paste mode (ESC[?2004h)
+      // We need to wrap input in paste sequences for it to be accepted
+      const PASTE_START = '\x1b[200~';
+      const PASTE_END = '\x1b[201~';
+
+      // Remove any existing line endings
       const textOnly = input.replace(/[\r\n]+$/, '');
-      const inputWithEnter = textOnly + '\r';
-      this.logger.log(`Sending: "${textOnly}" + Enter`);
+      // Wrap in bracketed paste, then send Enter separately
+      const pastedText = PASTE_START + textOnly + PASTE_END;
+      this.logger.log(`Sending bracketed paste: "${textOnly}" then Enter`);
 
       // Check if this is a slash command (starts with /)
       // Claude CLI shows autocomplete for these - need double-Enter:
@@ -360,10 +365,11 @@ export class ClaudeService implements OnModuleInit {
 
       if (isSlashCommand) {
         this.logger.log(`Detected slash command: ${textOnly}, sending with double-Enter`);
-        // Send command + Enter
-        session.ptyProcess.write(inputWithEnter);
-        this.logger.log(`First write complete (command + Enter)`);
-        // After delay, send second Enter to execute
+        // Send bracketed paste text, then Enter to confirm autocomplete
+        session.ptyProcess.write(pastedText);
+        session.ptyProcess.write('\r');
+        this.logger.log(`First write complete (paste + Enter)`);
+        // After delay, send second Enter to execute the command
         setTimeout(() => {
           const currentSession = this.sessions.get(sessionId);
           if (currentSession?.ptyProcess) {
@@ -375,8 +381,9 @@ export class ClaudeService implements OnModuleInit {
           }
         }, 200);
       } else {
-        // Regular input - just send text + Enter
-        session.ptyProcess.write(inputWithEnter);
+        // Regular input - send bracketed paste, then Enter to submit
+        session.ptyProcess.write(pastedText);
+        session.ptyProcess.write('\r');
       }
 
       this.logger.log(`PTY input sent successfully`);
