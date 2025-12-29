@@ -81,52 +81,35 @@ export class ClaudeService implements OnModuleInit {
           if (!promptSent) {
             promptSent = true;
             setTimeout(() => {
-              this.logger.log('[STARTUP TEST] Testing multiple submission methods...');
-
-              // Method 1: Plain text + \r (carriage return)
+              // CONFIRMED WORKING: Send text first, then carriage return separately
+              this.logger.log('[STARTUP TEST] Sending "Say hi" (text only)...');
               ptyProcess.write('Say hi');
-              this.logger.log('[STARTUP TEST] Sent text "Say hi"');
 
-              // Wait a moment, then try Enter key
+              // Small delay, then send carriage return to submit
               setTimeout(() => {
-                this.logger.log('[STARTUP TEST] Sending Enter (\\r)...');
+                this.logger.log('[STARTUP TEST] Sending carriage return (\\r) to submit...');
                 ptyProcess.write('\r');
-              }, 500);
-
-              // If that doesn't work, try Ctrl+J (Line Feed) after 2 seconds
-              setTimeout(() => {
-                this.logger.log('[STARTUP TEST] Sending Ctrl+J (Line Feed \\x0a)...');
-                ptyProcess.write('\x0a');
-              }, 2500);
-
-              // Try Ctrl+M (Carriage Return) after 4 seconds
-              setTimeout(() => {
-                this.logger.log('[STARTUP TEST] Sending Ctrl+M (\\x0d)...');
-                ptyProcess.write('\x0d');
-              }, 4500);
+              }, 100);
 
             }, 1000);
           }
         }
 
-        // Detect Claude's response - look for actual AI response patterns
-        // NOT just "Claude" which appears in the startup banner
+        // Detect Claude's response - look for processing/response indicators
         if (promptSent && !responseReceived) {
-          // Look for response patterns that indicate Claude actually replied
-          const isActualResponse =
+          // Look for Claude's processing indicator "Enchanting…" or response text
+          const isProcessingOrResponse =
+            cleanData.includes('Enchanting') ||  // Claude's thinking indicator
+            cleanData.includes('Thinking') ||
+            cleanData.includes('esc to interrupt') ||
             (cleanData.toLowerCase().includes('hello') && !cleanData.includes('Claude Code')) ||
             cleanData.toLowerCase().includes('hi there') ||
-            cleanData.toLowerCase().includes('hi!') ||
-            cleanData.toLowerCase().includes("how can i help") ||
-            cleanData.toLowerCase().includes("how may i") ||
-            cleanData.includes('thinking') ||  // Claude's thinking indicator
-            cleanData.includes('⏺') ||  // Claude's response indicator
-            cleanData.includes('│ ');  // Response box formatting
+            cleanData.toLowerCase().includes('hi!');
 
-          if (isActualResponse) {
+          if (isProcessingOrResponse) {
             responseReceived = true;
-            this.logger.log('[STARTUP TEST] SUCCESS - Got actual response from Claude!');
-            this.logger.log(`[STARTUP TEST] Response content: ${cleanData.substring(0, 300)}`);
+            this.logger.log('[STARTUP TEST] SUCCESS - Claude is processing/responded!');
+            this.logger.log(`[STARTUP TEST] Output: ${cleanData.substring(0, 300)}`);
           }
         }
       });
