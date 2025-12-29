@@ -57,6 +57,7 @@ export interface LoginMessage {
 export interface StartInteractiveMessage {
   type: "start_interactive";
   sessionId: string;
+  projectPath: string;
   cols?: number;
   rows?: number;
 }
@@ -91,9 +92,9 @@ export type ServerMessageType =
   | "auth_required"
   | "auth_success"
   | "auth_failed"
-  | "ptyOutput"
-  | "loginInteractive"
-  | "interactiveStarted";
+  | "pty_output"
+  | "login_interactive"
+  | "interactive_started";
 
 export interface SessionReadyMessage {
   type: "session_ready";
@@ -110,8 +111,9 @@ export interface StatusMessage {
 export interface OutputMessage {
   type: "output";
   sessionId: string;
-  data: string;
-  stream?: "stdout" | "stderr";
+  content: string;
+  outputType?: string;
+  isFinal?: boolean;
 }
 
 export interface ErrorMessage {
@@ -144,20 +146,21 @@ export interface AuthFailedMessage {
 }
 
 export interface PtyOutputMessage {
-  type: "ptyOutput";
+  type: "pty_output";
   sessionId: string;
-  data: string;
+  content: string;
 }
 
 export interface LoginInteractiveMessage {
-  type: "loginInteractive";
-  url: string;
-  code: string;
+  type: "login_interactive";
+  sessionId: string;
+  message: string;
 }
 
 export interface InteractiveStartedMessage {
-  type: "interactiveStarted";
+  type: "interactive_started";
   sessionId: string;
+  message?: string;
 }
 
 export type ServerMessage =
@@ -192,7 +195,7 @@ export function isOutputMessage(msg: ServerMessage): msg is OutputMessage {
 }
 
 export function isPtyOutputMessage(msg: ServerMessage): msg is PtyOutputMessage {
-  return msg.type === "ptyOutput";
+  return msg.type === "pty_output";
 }
 
 export function isErrorMessage(msg: ServerMessage): msg is ErrorMessage {

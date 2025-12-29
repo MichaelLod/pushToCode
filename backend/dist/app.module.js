@@ -15,6 +15,7 @@ const auth_module_1 = require("./auth/auth.module");
 const claude_module_1 = require("./claude/claude.module");
 const transcription_module_1 = require("./transcription/transcription.module");
 const repos_module_1 = require("./repos/repos.module");
+const stressor_module_1 = require("./stressor/stressor.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,6 +30,7 @@ exports.AppModule = AppModule = __decorate([
             claude_module_1.ClaudeModule,
             transcription_module_1.TranscriptionModule,
             repos_module_1.ReposModule,
+            stressor_module_1.StressorModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

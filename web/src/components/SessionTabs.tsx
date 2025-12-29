@@ -87,12 +87,19 @@ export function SessionTabs({
     >
       {/* Session tabs */}
       {sessions.map((session) => (
-        <button
+        <div
           key={session.id}
           role="tab"
+          tabIndex={0}
           aria-selected={session.id === currentSessionId}
           aria-controls={`terminal-${session.id}`}
           onClick={() => onSelectSession(session.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onSelectSession(session.id);
+            }
+          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -176,7 +183,7 @@ export function SessionTabs({
               <line x1="10" y1="2" x2="2" y2="10" />
             </svg>
           </button>
-        </button>
+        </div>
       ))}
 
       {/* Add session button */}

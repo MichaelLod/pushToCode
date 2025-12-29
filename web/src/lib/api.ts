@@ -47,6 +47,34 @@ export interface CreateRepoRequest {
   url?: string;
 }
 
+// Stressor types
+export interface StressorConfig {
+  enabled: boolean;
+  projects: string[];
+  intervalMinHours?: number;
+  intervalMaxHours?: number;
+}
+
+export interface StressorStatus {
+  running: boolean;
+  enabled: boolean;
+  pid: number | null;
+  projects: string[];
+  intervalMinHours: number;
+  intervalMaxHours: number;
+  lastRun: string | null;
+  nextRun: string | null;
+}
+
+export interface StressorActionResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface StressorLogsResponse {
+  logs: string;
+}
+
 class ApiClient {
   private baseUrl: string;
   private apiKey: string | null = null;
@@ -211,6 +239,79 @@ class ApiClient {
       createdAt: new Date(response.createdAt),
       lastUsed: response.lastUsed ? new Date(response.lastUsed) : undefined,
     };
+  }
+
+  // ============================================
+  // Stressor
+  // ============================================
+
+  /**
+   * Get stressor status
+   */
+  async getStressorStatus(): Promise<StressorStatus> {
+    return this.request<StressorStatus>("/api/stressor/status");
+  }
+
+  /**
+   * Get stressor config
+   */
+  async getStressorConfig(): Promise<StressorConfig> {
+    return this.request<StressorConfig>("/api/stressor/config");
+  }
+
+  /**
+   * Update stressor config
+   */
+  async updateStressorConfig(config: Partial<StressorConfig>): Promise<StressorConfig> {
+    return this.request<StressorConfig>("/api/stressor/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Start the stressor daemon
+   */
+  async startStressor(): Promise<StressorActionResponse> {
+    return this.request<StressorActionResponse>("/api/stressor/start", {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Stop the stressor daemon
+   */
+  async stopStressor(): Promise<StressorActionResponse> {
+    return this.request<StressorActionResponse>("/api/stressor/stop", {
+      method: "POST",
+    });
+  }
+
+  /**
+   * Add a project to stressor
+   */
+  async addStressorProject(path: string): Promise<StressorConfig> {
+    return this.request<StressorConfig>("/api/stressor/projects", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  /**
+   * Remove a project from stressor
+   */
+  async removeStressorProject(path: string): Promise<StressorConfig> {
+    return this.request<StressorConfig>(`/api/stressor/projects/${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /**
+   * Get stressor logs
+   */
+  async getStressorLogs(lines: number = 100): Promise<string> {
+    const response = await this.request<StressorLogsResponse>(`/api/stressor/logs?lines=${lines}`);
+    return response.logs;
   }
 }
 

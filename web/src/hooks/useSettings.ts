@@ -4,7 +4,7 @@
  * React hook for managing app settings with localStorage persistence
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AppSettings, DEFAULT_SETTINGS } from "@/types/session";
 import {
   getSettings,
@@ -44,28 +44,22 @@ export interface UseSettingsReturn {
   markSaved: () => void;
 }
 
-// Helper to get initial values (runs only once during initial render)
-function getInitialSettings(): AppSettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
-  return getSettings();
-}
-
-function getInitialApiKey(): string {
-  if (typeof window === "undefined") return "";
-  return getApiKey();
-}
-
 export function useSettings(): UseSettingsReturn {
-  // Initialize directly from localStorage (lazy initialization)
-  const [settings, setSettingsState] = useState<AppSettings>(getInitialSettings);
-  const [apiKey, setApiKeyState] = useState<string>(getInitialApiKey);
-  const [isLoaded] = useState(() => typeof window !== "undefined");
-  const [savedSnapshot, setSavedSnapshot] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
+  // Start with defaults to avoid hydration mismatch
+  const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [apiKey, setApiKeyState] = useState<string>("");
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+
+  // Load from localStorage after mount (client-only)
+  useEffect(() => {
     const stored = getSettings();
     const storedApiKey = getApiKey();
-    return JSON.stringify({ ...stored, apiKey: storedApiKey });
-  });
+    setSettingsState(stored);
+    setApiKeyState(storedApiKey);
+    setSavedSnapshot(JSON.stringify({ ...stored, apiKey: storedApiKey }));
+    setIsLoaded(true);
+  }, []);
 
   // Check for unsaved changes
   const currentSnapshot = JSON.stringify({ ...settings, apiKey });

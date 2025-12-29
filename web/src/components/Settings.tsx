@@ -7,7 +7,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSettings } from "@/hooks/useSettings";
-import { getApiClient } from "@/lib/api";
+import { useStressor } from "@/hooks/useStressor";
+import ApiClient from "@/lib/api";
 
 interface SettingsProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ interface SettingsContentProps {
  */
 function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsContentProps) {
   const settings = useSettings();
+  const stressor = useStressor();
   const [showApiKey, setShowApiKey] = useState(false);
   const [testStatus, setTestStatus] = useState<ConnectionTestStatus>("idle");
   const [testMessage, setTestMessage] = useState("");
@@ -42,6 +44,9 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
   // Local form state for server URL (to validate before saving)
   const [localServerUrl, setLocalServerUrl] = useState(initialServerUrl);
   const [localApiKey, setLocalApiKey] = useState(initialApiKey);
+
+  // Stressor local state - available repos from /repos
+  const [availableRepos, setAvailableRepos] = useState<{ name: string; path: string }[]>([]);
 
   // Focus close button on mount
   useEffect(() => {
@@ -59,6 +64,26 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  // Fetch available repos from backend
+  useEffect(() => {
+    const fetchRepos = async () => {
+      try {
+        let baseUrl = localServerUrl;
+        if (baseUrl.startsWith("ws://")) {
+          baseUrl = baseUrl.replace("ws://", "http://");
+        } else if (baseUrl.startsWith("wss://")) {
+          baseUrl = baseUrl.replace("wss://", "https://");
+        }
+        const client = new ApiClient({ baseUrl, apiKey: localApiKey || undefined });
+        const repos = await client.listRepos();
+        setAvailableRepos(repos.map(r => ({ name: r.name, path: r.path })));
+      } catch {
+        // Silently fail - repos will just be empty
+      }
+    };
+    fetchRepos();
+  }, [localServerUrl, localApiKey]);
+
   // Validate server URL
   const validateServerUrl = useCallback((url: string): string | undefined => {
     if (!url.trim()) {
@@ -75,7 +100,7 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
     return undefined;
   }, []);
 
-  // Test connection
+  // Test connection - tests both HTTP health and WebSocket connectivity
   const testConnection = useCallback(async () => {
     const urlError = validateServerUrl(localServerUrl);
     if (urlError) {
@@ -95,17 +120,89 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
         healthUrl = healthUrl.replace("wss://", "https://");
       }
 
-      const client = getApiClient({ baseUrl: healthUrl, apiKey: localApiKey || undefined });
+      console.log("[Settings] Testing connection to:", healthUrl);
+      console.log("[Settings] API Key:", localApiKey ? `${localApiKey.slice(0, 8)}...` : "(none)");
+
+      // Step 1: Test HTTP health endpoint
+      const client = new ApiClient({ baseUrl: healthUrl, apiKey: localApiKey || undefined });
       const response = await client.health();
 
-      if (response.status === "ok") {
+      if (response.status !== "ok") {
+        setTestStatus("error");
+        setTestMessage("Server returned error status");
+        return;
+      }
+
+      // Step 2: Test WebSocket connection with API key
+      let wsUrl = localServerUrl;
+      if (wsUrl.startsWith("http://")) {
+        wsUrl = wsUrl.replace("http://", "ws://");
+      } else if (wsUrl.startsWith("https://")) {
+        wsUrl = wsUrl.replace("https://", "wss://");
+      }
+
+      // Add API key as query param (browser WebSocket can't send headers)
+      if (localApiKey) {
+        const separator = wsUrl.includes("?") ? "&" : "?";
+        wsUrl = `${wsUrl}${separator}apiKey=${encodeURIComponent(localApiKey)}`;
+      }
+
+      console.log("[Settings] Testing WebSocket to:", wsUrl.replace(/apiKey=[^&]+/, "apiKey=***"));
+
+      // Test WebSocket with timeout
+      const wsTest = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+        let resolved = false;
+        const safeResolve = (result: { success: boolean; error?: string }) => {
+          if (!resolved) {
+            resolved = true;
+            resolve(result);
+          }
+        };
+
+        const timeout = setTimeout(() => {
+          safeResolve({ success: false, error: "WebSocket connection timeout" });
+        }, 5000);
+
+        try {
+          const ws = new WebSocket(wsUrl);
+
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            ws.close(1000, "Test complete");
+            safeResolve({ success: true });
+          };
+
+          ws.onerror = () => {
+            clearTimeout(timeout);
+            safeResolve({ success: false, error: "WebSocket connection failed" });
+          };
+
+          ws.onclose = (event) => {
+            clearTimeout(timeout);
+            // Only resolve on close if we haven't already (e.g., from onopen)
+            // Code 1000 = normal closure, 1006 = abnormal (often auth failure)
+            if (event.code !== 1000) {
+              safeResolve({
+                success: false,
+                error: event.code === 1006 ? "Authentication failed - check API key" : `Connection closed (${event.code})`
+              });
+            }
+          };
+        } catch (err) {
+          clearTimeout(timeout);
+          safeResolve({ success: false, error: err instanceof Error ? err.message : "WebSocket error" });
+        }
+      });
+
+      if (wsTest.success) {
         setTestStatus("success");
         setTestMessage(response.version ? `Connected (v${response.version})` : "Connected");
       } else {
         setTestStatus("error");
-        setTestMessage("Server returned error status");
+        setTestMessage(wsTest.error || "WebSocket connection failed");
       }
     } catch (error) {
+      console.error("[Settings] Connection error:", error);
       setTestStatus("error");
       setTestMessage(error instanceof Error ? error.message : "Connection failed");
     }
@@ -438,6 +535,172 @@ function SettingsContent({ onClose, initialServerUrl, initialApiKey }: SettingsC
                 />
               </button>
             </div>
+          </section>
+
+          {/* Stressor Section */}
+          <section className="p-4 border-b border-border">
+            <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
+              Stressor Daemon
+            </h3>
+
+            {/* Status */}
+            <div className="mb-4 p-3 rounded-lg bg-bg-primary">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-text-primary font-medium">Status</span>
+                <span className={`text-sm font-medium ${stressor.status?.running ? "text-success" : "text-text-secondary"}`}>
+                  {stressor.loading ? "Loading..." : stressor.status?.running ? "Running" : "Stopped"}
+                </span>
+              </div>
+              {stressor.status?.lastRun && (
+                <p className="text-xs text-text-secondary">Last run: {stressor.status.lastRun}</p>
+              )}
+              {stressor.error && (
+                <p className="text-xs text-error mt-1">{stressor.error}</p>
+              )}
+            </div>
+
+            {/* Start/Stop Toggle */}
+            <div className="flex items-center justify-between py-2 mb-4">
+              <label className="text-sm font-medium text-text-primary">
+                Enable Daemon
+              </label>
+              <button
+                role="switch"
+                aria-checked={stressor.status?.running ?? false}
+                onClick={() => stressor.status?.running ? stressor.stop() : stressor.start()}
+                disabled={stressor.loading}
+                className={`
+                  relative w-12 h-7 rounded-full transition-colors disabled:opacity-50
+                  ${stressor.status?.running ? "bg-accent" : "bg-border"}
+                `}
+              >
+                <span
+                  className={`
+                    absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform
+                    ${stressor.status?.running ? "translate-x-5" : "translate-x-0"}
+                  `}
+                />
+              </button>
+            </div>
+
+            {/* Projects Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Select Projects to Monitor ({stressor.config?.projects.length || 0} selected)
+              </label>
+
+              {availableRepos.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {availableRepos.map((repo) => {
+                    const isSelected = stressor.config?.projects.includes(repo.path) ?? false;
+                    return (
+                      <label
+                        key={repo.path}
+                        className={`
+                          flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors
+                          ${isSelected ? "bg-accent/20 border border-accent" : "bg-bg-primary hover:bg-border"}
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            if (isSelected) {
+                              stressor.removeProject(repo.path);
+                            } else {
+                              stressor.addProject(repo.path);
+                            }
+                          }}
+                          className="w-5 h-5 rounded border-border text-accent focus:ring-accent focus:ring-offset-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">
+                            {repo.name}
+                          </p>
+                          <p className="text-xs text-text-secondary truncate">
+                            {repo.path}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-accent shrink-0"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-bg-primary text-center">
+                  <p className="text-sm text-text-secondary">
+                    No repositories found in /repos
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    Clone or create repositories first
+                  </p>
+                </div>
+              )}
+
+              {/* Selected count summary */}
+              {stressor.config?.projects && stressor.config.projects.length > 0 && (
+                <div className="mt-3 p-2 rounded-lg bg-accent/10 border border-accent/20">
+                  <p className="text-xs text-accent">
+                    {stressor.config.projects.length} project{stressor.config.projects.length !== 1 ? 's' : ''} will be monitored
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Interval Settings */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Scan Interval: {stressor.config?.intervalMinHours || 4}-{stressor.config?.intervalMaxHours || 8} hours
+              </label>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-xs text-text-secondary mb-1 block">Min</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={stressor.config?.intervalMinHours || 4}
+                    onChange={(e) => stressor.updateConfig({ intervalMinHours: parseInt(e.target.value, 10) })}
+                    className="w-full px-3 py-2 rounded-lg bg-bg-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-text-secondary mb-1 block">Max</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="48"
+                    value={stressor.config?.intervalMaxHours || 8}
+                    onChange={(e) => stressor.updateConfig({ intervalMaxHours: parseInt(e.target.value, 10) })}
+                    className="w-full px-3 py-2 rounded-lg bg-bg-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => stressor.refresh()}
+              disabled={stressor.loading}
+              className="w-full py-2 rounded-lg bg-bg-primary text-text-primary hover:bg-border transition-colors disabled:opacity-50 min-h-[44px]"
+            >
+              {stressor.loading ? "Refreshing..." : "Refresh Status"}
+            </button>
           </section>
 
           {/* About Section */}

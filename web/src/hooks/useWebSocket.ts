@@ -36,45 +36,52 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const clientRef = useRef<WebSocketClient | null>(null);
   const optionsRef = useRef(options);
+  const prevParamsRef = useRef<{ url: string; apiKey?: string }>({ url: "", apiKey: undefined });
 
   // Keep options ref updated
   // eslint-disable-next-line react-hooks/refs -- Keep ref in sync with latest options
   optionsRef.current = options;
 
-  // Initialize client
+  // Initialize client - reset when URL or API key changes
   useEffect(() => {
-    const clientOptions: WebSocketClientOptions = {
-      url,
-      apiKey,
-      reconnect: true,
-      reconnectInterval: 1000,
-      maxReconnectAttempts: 10,
-      pingInterval: 30000,
-      onStatusChange: (newStatus) => {
-        setStatus(newStatus);
-        optionsRef.current.onStatusChange?.(newStatus);
-      },
-      onMessage: (message) => {
-        optionsRef.current.onMessage?.(message);
-      },
-      onError: (error) => {
-        optionsRef.current.onError?.(error);
-      },
-    };
+    // Skip if params haven't actually changed
+    const paramsChanged = prevParamsRef.current.url !== url || prevParamsRef.current.apiKey !== apiKey;
 
-    // Get or create singleton client
-    try {
+    if (paramsChanged) {
+      // eslint-disable-next-line react-hooks/refs -- Tracking previous values
+      prevParamsRef.current = { url, apiKey };
+
+      // Reset existing client when connection params change
+      resetWebSocketClient();
+    }
+
+    // Only create new client if we don't have one or params changed
+    if (!clientRef.current || paramsChanged) {
+      const clientOptions: WebSocketClientOptions = {
+        url,
+        apiKey,
+        reconnect: true,
+        reconnectInterval: 1000,
+        maxReconnectAttempts: 10,
+        pingInterval: 30000,
+        onStatusChange: (newStatus) => {
+          setStatus(newStatus);
+          optionsRef.current.onStatusChange?.(newStatus);
+        },
+        onMessage: (message) => {
+          optionsRef.current.onMessage?.(message);
+        },
+        onError: (error) => {
+          optionsRef.current.onError?.(error);
+        },
+      };
+
+      // Create fresh client with new options
       clientRef.current = getWebSocketClient(clientOptions);
-    } catch {
-      // Client already exists, update API key if needed
-      clientRef.current = getWebSocketClient();
-      if (apiKey) {
-        clientRef.current.setApiKey(apiKey);
-      }
     }
 
     // Auto-connect if enabled
-    if (autoConnect && clientRef.current) {
+    if (autoConnect && clientRef.current && clientRef.current.getStatus() === "disconnected") {
       clientRef.current.connect();
     }
 
@@ -84,8 +91,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     return () => {
-      // Cleanup on unmount - don't reset singleton, just disconnect
-      // resetWebSocketClient() would prevent other components from using it
+      // Cleanup on unmount
+      resetWebSocketClient();
     };
   }, [url, apiKey, autoConnect]);
 

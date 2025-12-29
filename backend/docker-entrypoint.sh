@@ -7,7 +7,9 @@ CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-/repos/.claude}"
 echo "Fixing volume permissions..."
 chown -R claude:claude /repos
 mkdir -p "$CLAUDE_DIR"
+mkdir -p /repos/.stressor
 chown -R claude:claude "$CLAUDE_DIR"
+chown -R claude:claude /repos/.stressor
 
 # Symlink home .claude to repos .claude (Claude CLI uses $HOME/.claude for hooks)
 mkdir -p /home/claude

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { Terminal } from "@/components/Terminal";
 import { SessionTabs } from "@/components/SessionTabs";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
@@ -15,22 +15,12 @@ import { ServerMessage } from "@/types/messages";
 export default function Home() {
   const settings = useSettings();
   const [showSettings, setShowSettings] = useState(false);
+  const initializedSessionsRef = useRef<Set<string>>(new Set());
 
   // Convert HTTP URL to WebSocket URL if needed
   const wsUrl = settings.serverUrl
     .replace(/^https:\/\//, "wss://")
     .replace(/^http:\/\//, "ws://");
-
-  // WebSocket connection
-  const { status, send, isConnected } = useWebSocket({
-    url: wsUrl,
-    apiKey: settings.apiKey,
-    autoConnect: !!settings.serverUrl && !!settings.apiKey,
-    onMessage: handleServerMessage,
-    onStatusChange: (newStatus) => {
-      console.log("WebSocket status:", newStatus);
-    },
-  });
 
   // Session management
   const {
@@ -41,26 +31,32 @@ export default function Home() {
     removeSession,
   } = useSessions();
 
-  // Create initial session if none exist
-  useEffect(() => {
-    if (sessions.length === 0 && settings.isLoaded) {
-      createSession({ name: "Terminal 1" });
-    }
-  }, [sessions.length, createSession, settings.isLoaded]);
+  // Terminal for current session - need to get write function
+  const terminalWriteRef = useRef<((data: string) => void) | null>(null);
 
   // Handle messages from server
-  function handleServerMessage(message: ServerMessage) {
+  const handleServerMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
       case "output":
-      case "ptyOutput":
-        // Write output to terminal - terminal handles this via ref
-        console.log("Output:", message.data);
+        // Write output to terminal
+        if (message.content) {
+          terminalWriteRef.current?.(message.content);
+        }
+        break;
+      case "pty_output":
+        // Write PTY output to terminal
+        if (message.content) {
+          terminalWriteRef.current?.(message.content);
+        }
         break;
       case "session_ready":
         console.log("Session ready:", message.sessionId);
         break;
-      case "interactiveStarted":
+      case "interactive_started":
         console.log("Interactive started:", message.sessionId);
+        break;
+      case "status":
+        console.log("Status:", message.sessionId, message.status);
         break;
       case "error":
         console.error("Server error:", message.message);
@@ -74,8 +70,47 @@ export default function Home() {
       case "auth_failed":
         console.error("Auth failed:", message.reason);
         break;
+      case "login_interactive":
+        console.log("Login interactive:", message.message);
+        break;
+      case "ping":
+      case "pong":
+        // Handled by websocket client
+        break;
     }
-  }
+  }, []);
+
+  // WebSocket connection
+  const { status, send, isConnected } = useWebSocket({
+    url: wsUrl,
+    apiKey: settings.apiKey,
+    autoConnect: !!settings.serverUrl && !!settings.apiKey,
+    onMessage: handleServerMessage,
+    onStatusChange: (newStatus) => {
+      console.log("WebSocket status:", newStatus);
+    },
+  });
+
+  // Create initial session if none exist
+  useEffect(() => {
+    if (sessions.length === 0 && settings.isLoaded) {
+      createSession({ name: "Terminal 1" });
+    }
+  }, [sessions.length, createSession, settings.isLoaded]);
+
+  // Start interactive session on backend when connected
+  useEffect(() => {
+    if (isConnected && currentSession && !initializedSessionsRef.current.has(currentSession.id)) {
+      console.log("Starting interactive session:", currentSession.id);
+      initializedSessionsRef.current.add(currentSession.id);
+
+      send({
+        type: "start_interactive",
+        sessionId: currentSession.id,
+        projectPath: currentSession.repoPath || "/repos", // Default to /repos
+      });
+    }
+  }, [isConnected, currentSession, send]);
 
   // Handle user input from InputBar
   const handleSendMessage = useCallback(
@@ -126,6 +161,15 @@ export default function Home() {
 
   // Show settings if not configured
   const needsConfig = !settings.serverUrl || !settings.apiKey;
+
+  // Show loading state until settings are loaded (prevents hydration mismatch)
+  if (!settings.isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-bg-primary">
+        <p className="text-text-secondary">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col bg-bg-primary">
@@ -192,6 +236,9 @@ export default function Home() {
               <Terminal
                 sessionId={currentSession.id}
                 onInput={handleTerminalInput}
+                onReady={(terminal) => {
+                  terminalWriteRef.current = terminal.write;
+                }}
                 fontSize={settings.fontSize}
                 fontFamily={settings.fontFamily}
               />

@@ -23,8 +23,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Install git, bash, and build tools for node-pty
-RUN apk add --no-cache git bash python3 make g++
+# Install git, bash, jq (for stressor daemon), and build tools for node-pty
+RUN apk add --no-cache git bash jq python3 make g++
 
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code
@@ -32,8 +32,8 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create non-root user (Claude CLI blocks --dangerously-skip-permissions as root)
 RUN addgroup -g 1001 claude && adduser -D -u 1001 -G claude claude
 
-# Create repos directory for volume mount (also stores Claude config)
-RUN mkdir -p /repos/.claude && chown -R claude:claude /repos
+# Create repos directory for volume mount (also stores Claude config and stressor config)
+RUN mkdir -p /repos/.claude /repos/.stressor && chown -R claude:claude /repos
 
 # Set default repos path (can be overridden with -e REPOS_PATH=...)
 ENV REPOS_PATH=/repos
@@ -56,6 +56,10 @@ RUN npm ci --only=production
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
+
+# Copy stressor daemon script
+COPY stressor-daemon.sh /app/stressor-daemon.sh
+RUN chmod +x /app/stressor-daemon.sh
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
