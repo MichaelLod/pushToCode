@@ -33,7 +33,7 @@ RUN npm install -g @anthropic-ai/claude-code
 RUN addgroup -g 1001 claude && adduser -D -u 1001 -G claude claude
 
 # Set git author globally for the claude user (required for commits)
-RUN git config --global user.email "claude@pushtocode.app" && \
+RUN git config --global user.email "michael.lodzik@gmail.com" && \
     git config --global user.name "MichaelLod"
 
 # Create repos directory for volume mount (also stores Claude config and stressor config)
