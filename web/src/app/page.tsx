@@ -347,27 +347,48 @@ export default function Home() {
     async (attachments: FileAttachment[]) => {
       if (!currentSession || !isConnected) return;
 
-      // Upload files
+      // Upload files and wait for actual paths from server
       const uploadedPaths: string[] = [];
       for (const attachment of attachments) {
         try {
           const base64Data = await fileToBase64(attachment.file);
+          const filename = attachment.file.name;
+
+          // Create promise to wait for server response with actual path
+          const pathPromise = new Promise<string>((resolve) => {
+            // Set a timeout in case server doesn't respond
+            const timeout = setTimeout(() => {
+              pendingUploadsRef.current.delete(filename);
+              resolve(`/tmp/pushtocode-uploads/${filename}`); // Fallback to original name
+            }, 5000);
+
+            pendingUploadsRef.current.set(filename, (path: string) => {
+              clearTimeout(timeout);
+              resolve(path);
+            });
+          });
+
+          // Send upload request
           send({
             type: "upload_file",
             sessionId: currentSession.id,
-            filename: attachment.file.name,
+            filename: filename,
             mimeType: attachment.file.type,
             data: base64Data,
           });
-          uploadedPaths.push(attachment.file.name);
+
+          // Wait for actual path from server
+          const actualPath = await pathPromise;
+          uploadedPaths.push(actualPath);
+          console.log("File uploaded, actual path:", actualPath);
         } catch (err) {
           console.error("Failed to upload file:", err);
         }
       }
 
-      // Send file reference message to terminal
+      // Send file reference message to terminal with ACTUAL paths
       if (uploadedPaths.length > 0) {
-        const fileNote = `[Attached: ${uploadedPaths.join(", ")} - files saved to /tmp/pushtocode-uploads/]`;
+        const fileNote = `[Attached files: ${uploadedPaths.join(", ")}]`;
         send({
           type: "pty_input",
           sessionId: currentSession.id,
