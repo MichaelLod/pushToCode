@@ -1,5 +1,6 @@
 /**
  * useWebSocket hook - Manages WebSocket connection lifecycle with reconnect
+ * Each instance creates its own WebSocket client (one per terminal session)
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -7,14 +8,14 @@ import {
   WebSocketClient,
   WebSocketClientOptions,
   ConnectionStatus,
-  getWebSocketClient,
-  resetWebSocketClient,
+  createWebSocketClient,
 } from "@/lib/websocket";
 import { ClientMessage, ServerMessage } from "@/types/messages";
 
 export interface UseWebSocketOptions {
   url: string;
   apiKey?: string;
+  sessionId: string; // Required - each terminal has its own connection
   autoConnect?: boolean;
   onMessage?: (message: ServerMessage) => void;
   onStatusChange?: (status: ConnectionStatus) => void;
@@ -28,74 +29,67 @@ export interface UseWebSocketReturn {
   disconnect: () => void;
   send: (message: ClientMessage) => boolean;
   checkConnection: () => void;
-  client: WebSocketClient | null;
 }
 
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
-  const { url, apiKey, autoConnect = true } = options;
+  const { url, apiKey, sessionId, autoConnect = true } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const clientRef = useRef<WebSocketClient | null>(null);
   const optionsRef = useRef(options);
-  const prevParamsRef = useRef<{ url: string; apiKey?: string }>({ url: "", apiKey: undefined });
 
   // Keep options ref updated
   // eslint-disable-next-line react-hooks/refs -- Keep ref in sync with latest options
   optionsRef.current = options;
 
-  // Initialize client - reset when URL or API key changes
+  // Initialize client - create new client for this session
   useEffect(() => {
-    // Skip if params haven't actually changed
-    const paramsChanged = prevParamsRef.current.url !== url || prevParamsRef.current.apiKey !== apiKey;
-
-    if (paramsChanged) {
-      // eslint-disable-next-line react-hooks/refs -- Tracking previous values
-      prevParamsRef.current = { url, apiKey };
-
-      // Reset existing client when connection params change
-      resetWebSocketClient();
+    // Don't create client without required params
+    if (!url || !sessionId) {
+      return;
     }
 
-    // Only create new client if we don't have one or params changed
-    if (!clientRef.current || paramsChanged) {
-      const clientOptions: WebSocketClientOptions = {
-        url,
-        apiKey,
-        reconnect: true,
-        reconnectInterval: 1000,
-        maxReconnectAttempts: Infinity, // Never give up reconnecting
-        pingInterval: 30000,
-        onStatusChange: (newStatus) => {
-          setStatus(newStatus);
-          optionsRef.current.onStatusChange?.(newStatus);
-        },
-        onMessage: (message) => {
-          optionsRef.current.onMessage?.(message);
-        },
-        onError: (error) => {
-          optionsRef.current.onError?.(error);
-        },
-      };
-
-      // Create fresh client with new options
-      clientRef.current = getWebSocketClient(clientOptions);
+    // Clean up existing client if any
+    if (clientRef.current) {
+      clientRef.current.disconnect();
+      clientRef.current = null;
     }
+
+    const clientOptions: WebSocketClientOptions = {
+      url,
+      apiKey,
+      reconnect: true,
+      reconnectInterval: 1000,
+      maxReconnectAttempts: Infinity,
+      pingInterval: 30000,
+      onStatusChange: (newStatus) => {
+        setStatus(newStatus);
+        optionsRef.current.onStatusChange?.(newStatus);
+      },
+      onMessage: (message) => {
+        optionsRef.current.onMessage?.(message);
+      },
+      onError: (error) => {
+        optionsRef.current.onError?.(error);
+      },
+    };
+
+    // Create new client for this terminal session
+    clientRef.current = createWebSocketClient(clientOptions);
 
     // Auto-connect if enabled
-    if (autoConnect && clientRef.current && clientRef.current.getStatus() === "disconnected") {
+    if (autoConnect) {
       clientRef.current.connect();
     }
 
-    // Update status from client
-    if (clientRef.current) {
-      setStatus(clientRef.current.getStatus());
-    }
-
     return () => {
-      // Cleanup on unmount
-      resetWebSocketClient();
+      // Cleanup on unmount - disconnect this session's WebSocket
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+        clientRef.current = null;
+      }
     };
-  }, [url, apiKey, autoConnect]);
+  }, [url, apiKey, sessionId, autoConnect]);
 
   const connect = useCallback(() => {
     clientRef.current?.connect();
@@ -120,18 +114,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     disconnect,
     send,
     checkConnection,
-    client: clientRef.current, // eslint-disable-line react-hooks/refs -- Expose instance
   };
-}
-
-/**
- * Hook to reset the WebSocket client completely
- * Useful for logout or app reset scenarios
- */
-export function useWebSocketReset(): () => void {
-  return useCallback(() => {
-    resetWebSocketClient();
-  }, []);
 }
 
 export type { ConnectionStatus };

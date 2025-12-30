@@ -277,24 +277,10 @@ export class WebSocketClient {
   }
 }
 
-// Singleton instance for app-wide use
-let wsClient: WebSocketClient | null = null;
-
-export function getWebSocketClient(options?: WebSocketClientOptions): WebSocketClient {
-  if (!wsClient && options) {
-    wsClient = new WebSocketClient(options);
-  }
-
-  if (!wsClient) {
-    throw new Error("WebSocket client not initialized. Call with options first.");
-  }
-
-  return wsClient;
-}
-
-export function resetWebSocketClient(): void {
-  if (wsClient) {
-    wsClient.disconnect();
-    wsClient = null;
-  }
+/**
+ * Create a new WebSocket client instance
+ * Each terminal session should have its own client
+ */
+export function createWebSocketClient(options: WebSocketClientOptions): WebSocketClient {
+  return new WebSocketClient(options);
 }
