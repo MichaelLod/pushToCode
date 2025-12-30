@@ -21,6 +21,7 @@ export interface TerminalPaneProps {
   repoPath?: string;
   serverUrl: string;
   apiKey: string;
+  isActive?: boolean; // Whether this terminal tab is currently visible
   onStatusChange?: (status: ConnectionStatus) => void;
   fontSize?: number;
   fontFamily?: string;
@@ -42,6 +43,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       repoPath,
       serverUrl,
       apiKey,
+      isActive = true,
       onStatusChange,
       fontSize = 14,
       fontFamily = "monospace",
@@ -54,9 +56,10 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
     const useBufferModeRef = useRef(false);
     const pendingUploadsRef = useRef<Map<string, (path: string) => void>>(new Map());
 
-    // Terminal write/focus refs
+    // Terminal write/focus/fit refs
     const terminalWriteRef = useRef<((data: string) => void) | null>(null);
     const terminalFocusRef = useRef<(() => void) | null>(null);
+    const terminalFitRef = useRef<(() => void) | null>(null);
 
     // Convert HTTP URL to WebSocket URL
     const wsUrl = serverUrl
@@ -272,6 +275,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
     const handleTerminalReady = useCallback((terminal: ReturnType<typeof useTerminal>) => {
       terminalWriteRef.current = terminal.write;
       terminalFocusRef.current = terminal.focus;
+      terminalFitRef.current = terminal.fit;
 
       // Restore persisted output once
       if (!hasRestoredOutputRef.current) {
@@ -282,9 +286,23 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
         hasRestoredOutputRef.current = true;
       }
 
-      // Auto-focus
-      terminal.focus();
-    }, [sessionId]);
+      // Auto-focus if active
+      if (isActive) {
+        terminal.focus();
+      }
+    }, [sessionId, isActive]);
+
+    // Re-fit terminal when it becomes active (fixes dimension calculation for hidden tabs)
+    useEffect(() => {
+      if (isActive) {
+        // Small delay to ensure visibility change has taken effect
+        const timer = setTimeout(() => {
+          terminalFitRef.current?.();
+          terminalFocusRef.current?.();
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }, [isActive]);
 
     // Send transcription text
     const sendTranscription = useCallback((text: string) => {

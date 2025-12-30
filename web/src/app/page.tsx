@@ -221,6 +221,7 @@ export default function Home() {
                     repoPath={session.repoPath}
                     serverUrl={settings.serverUrl}
                     apiKey={settings.apiKey}
+                    isActive={session.id === currentSession?.id}
                     onStatusChange={handleStatusChange(session.id)}
                     fontSize={settings.fontSize}
                     fontFamily={settings.fontFamily}
