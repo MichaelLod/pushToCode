@@ -81,7 +81,12 @@ export function ProjectPicker({
     }
   }, []);
 
-  // Fetch repos when dropdown opens
+  // Fetch repos on mount and when dropdown opens
+  useEffect(() => {
+    fetchRepos();
+  }, [fetchRepos]);
+
+  // Refresh when dropdown opens
   useEffect(() => {
     if (isOpen) {
       fetchRepos();
