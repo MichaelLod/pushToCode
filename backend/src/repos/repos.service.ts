@@ -49,6 +49,7 @@ export class ReposService {
   }
 
   private async loadExistingRepos(): Promise<void> {
+    // First, load from metadata file
     try {
       const metadataPath = path.join(this.reposPath, '.repos-metadata.json');
       const data = await fs.readFile(metadataPath, 'utf-8');
@@ -69,10 +70,89 @@ export class ReposService {
         }
       }
 
-      this.logger.log(`Loaded ${this.repos.size} existing repos`);
+      this.logger.log(`Loaded ${this.repos.size} repos from metadata`);
     } catch {
       // No metadata file yet, that's fine
       this.logger.log('No existing repos metadata found');
+    }
+
+    // Then, scan directory for any git repos not in metadata
+    await this.scanForNewRepos();
+  }
+
+  private async scanForNewRepos(): Promise<void> {
+    try {
+      const entries = await fs.readdir(this.reposPath, { withFileTypes: true });
+      const knownPaths = new Set(Array.from(this.repos.values()).map(r => r.path));
+      let added = 0;
+
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) {
+          continue;
+        }
+
+        const repoPath = path.join(this.reposPath, entry.name);
+
+        // Skip if already known
+        if (knownPaths.has(repoPath)) {
+          continue;
+        }
+
+        // Check if it's a git repo
+        try {
+          await fs.access(path.join(repoPath, '.git'));
+
+          // It's a git repo not in our metadata - add it
+          const id = uuidv4();
+          const repo: RepoMetadata = {
+            id,
+            name: entry.name,
+            path: repoPath,
+            url: await this.getRepoRemoteUrl(repoPath) || '',
+            createdAt: new Date(),
+          };
+
+          this.repos.set(id, repo);
+          added++;
+          this.logger.log(`Discovered existing repo: ${entry.name}`);
+        } catch {
+          // Not a git repo, skip
+        }
+      }
+
+      if (added > 0) {
+        await this.saveMetadata();
+        this.logger.log(`Added ${added} discovered repos to metadata`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to scan repos directory: ${error.message}`);
+    }
+  }
+
+  private async getRepoRemoteUrl(repoPath: string): Promise<string | null> {
+    try {
+      const { spawn } = await import('child_process');
+      return new Promise((resolve) => {
+        const git = spawn('git', ['remote', 'get-url', 'origin'], {
+          cwd: repoPath,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stdout = '';
+        git.stdout?.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        git.on('close', (code) => {
+          resolve(code === 0 ? stdout.trim() : null);
+        });
+
+        git.on('error', () => {
+          resolve(null);
+        });
+      });
+    } catch {
+      return null;
     }
   }
 

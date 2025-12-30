@@ -191,12 +191,12 @@ export default function Home() {
     lastInitTimeRef.current = 0;
   }, []); // Empty deps = runs once on mount
 
-  // Create initial session if none exist
+  // Show project selector if no sessions exist
   useEffect(() => {
-    if (sessions.length === 0 && settings.isLoaded) {
-      createSession({ name: "Terminal 1" });
+    if (sessions.length === 0 && settings.isLoaded && !showNewSessionModal) {
+      setShowNewSessionModal(true);
     }
-  }, [sessions.length, createSession, settings.isLoaded]);
+  }, [sessions.length, settings.isLoaded, showNewSessionModal]);
 
   // Handle app visibility change (PWA resume from background)
   useEffect(() => {

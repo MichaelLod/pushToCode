@@ -9,6 +9,8 @@ export declare class ReposService {
     constructor(configService: ConfigService);
     private initializeReposDirectory;
     private loadExistingRepos;
+    private scanForNewRepos;
+    private getRepoRemoteUrl;
     private saveMetadata;
     clone(dto: CloneRepoDto): Promise<RepoResponseDto>;
     list(): Promise<RepoResponseDto[]>;
