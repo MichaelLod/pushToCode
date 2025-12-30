@@ -82,7 +82,9 @@ export class ReposService {
 
   private async scanForNewRepos(): Promise<void> {
     try {
+      this.logger.log(`Scanning for repos in: ${this.reposPath}`);
       const entries = await fs.readdir(this.reposPath, { withFileTypes: true });
+      this.logger.log(`Found ${entries.length} entries in repos directory`);
       const knownPaths = new Set(Array.from(this.repos.values()).map(r => r.path));
       let added = 0;
 
@@ -239,6 +241,9 @@ export class ReposService {
   }
 
   async list(): Promise<RepoResponseDto[]> {
+    // Rescan for new repos each time list is called
+    await this.scanForNewRepos();
+
     return Array.from(this.repos.values()).map((repo) => ({
       id: repo.id,
       name: repo.name,

@@ -108,7 +108,9 @@ let ReposService = ReposService_1 = class ReposService {
     }
     async scanForNewRepos() {
         try {
+            this.logger.log(`Scanning for repos in: ${this.reposPath}`);
             const entries = await fs.readdir(this.reposPath, { withFileTypes: true });
+            this.logger.log(`Found ${entries.length} entries in repos directory`);
             const knownPaths = new Set(Array.from(this.repos.values()).map(r => r.path));
             let added = 0;
             for (const entry of entries) {
@@ -235,6 +237,7 @@ let ReposService = ReposService_1 = class ReposService {
         };
     }
     async list() {
+        await this.scanForNewRepos();
         return Array.from(this.repos.values()).map((repo) => ({
             id: repo.id,
             name: repo.name,
