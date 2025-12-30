@@ -521,7 +521,14 @@ export default function Home() {
         <SessionTabs
           sessions={sessions}
           currentSessionId={currentSession?.id ?? null}
-          onSelectSession={selectSession}
+          onSelectSession={(sessionId) => {
+            // Clear initialized flag so the session gets reinitialized
+            // This handles the case where the PTY died while on another tab
+            initializedSessionsRef.current.delete(sessionId);
+            restoredSessionsRef.current.delete(sessionId);
+            lastInitTimeRef.current = 0; // Reset debounce
+            selectSession(sessionId);
+          }}
           onCloseSession={removeSession}
           onAddSession={handleNewSession}
         />
