@@ -128,8 +128,8 @@ EOF
 [credential]
     helper = store
 [user]
-    email = ${GIT_USER_EMAIL:-claude@pushtocode.local}
-    name = ${GIT_USER_NAME:-Claude}
+    email = ${GIT_USER_EMAIL:-michael.lodzik@gmail.com}
+    name = ${GIT_USER_NAME:-MichaelLod}
 [init]
     defaultBranch = main
 [safe]
