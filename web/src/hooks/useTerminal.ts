@@ -92,6 +92,36 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     terminal.loadAddon(fitAddon);
     terminal.open(terminalRef.current);
 
+    // Mobile touch scroll support
+    let touchStartY = 0;
+    let touchStartViewport = 0;
+    const container = terminalRef.current;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartY = e.touches[0].clientY;
+        touchStartViewport = terminal.buffer.active.viewportY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const deltaY = touchStartY - e.touches[0].clientY;
+        const linesToScroll = Math.round(deltaY / (fontSize * 1.2)); // Approximate line height
+        const newViewport = touchStartViewport + linesToScroll;
+
+        // Clamp to valid range
+        const maxScroll = terminal.buffer.active.baseY;
+        const clampedViewport = Math.max(0, Math.min(maxScroll, newViewport));
+
+        terminal.scrollToLine(clampedViewport);
+        e.preventDefault(); // Prevent page scroll when scrolling terminal
+      }
+    };
+
+    container.addEventListener("touchstart", handleTouchStart, { passive: true });
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+
     // Initial fit
     requestAnimationFrame(() => {
       try {
@@ -139,6 +169,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       resizeDisposable.dispose();
       resizeObserver.disconnect();
       window.removeEventListener("resize", handleResize);
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchmove", handleTouchMove);
       terminal.dispose();
       terminalInstanceRef.current = null;
       fitAddonRef.current = null;
