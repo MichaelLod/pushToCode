@@ -191,12 +191,23 @@ export default function Home() {
     lastInitTimeRef.current = 0;
   }, []); // Empty deps = runs once on mount
 
-  // Show project selector if no sessions exist
+  // Show project selector if no sessions exist (after settings are configured)
   useEffect(() => {
-    if (sessions.length === 0 && settings.isLoaded && !showNewSessionModal) {
+    // Wait until settings are loaded and configured before showing modal
+    const isConfigured = settings.isLoaded && settings.serverUrl && settings.apiKey;
+
+    console.log("Session check:", {
+      sessionsCount: sessions.length,
+      isLoaded: settings.isLoaded,
+      isConfigured,
+      showNewSessionModal,
+    });
+
+    if (sessions.length === 0 && isConfigured && !showNewSessionModal) {
+      console.log("No sessions found, showing project selector");
       setShowNewSessionModal(true);
     }
-  }, [sessions.length, settings.isLoaded, showNewSessionModal]);
+  }, [sessions.length, settings.isLoaded, settings.serverUrl, settings.apiKey, showNewSessionModal]);
 
   // Handle app visibility change (PWA resume from background)
   useEffect(() => {
