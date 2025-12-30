@@ -8,12 +8,16 @@ interface NewSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (repoPath: string, repoName: string) => void;
+  serverUrl?: string;
+  apiKey?: string;
 }
 
 export function NewSessionModal({
   isOpen,
   onClose,
   onConfirm,
+  serverUrl,
+  apiKey,
 }: NewSessionModalProps) {
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [customPath, setCustomPath] = useState("");
@@ -102,6 +106,8 @@ export function NewSessionModal({
                 selectedRepoId={selectedRepo?.id ?? null}
                 onSelectRepo={setSelectedRepo}
                 className="w-full"
+                serverUrl={serverUrl}
+                apiKey={apiKey}
               />
             </div>
           )}

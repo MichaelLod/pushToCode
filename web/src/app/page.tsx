@@ -577,6 +577,8 @@ export default function Home() {
           setModalDismissed(true);
         }}
         onConfirm={handleCreateSessionWithRepo}
+        serverUrl={settings.serverUrl}
+        apiKey={settings.apiKey}
       />
 
       {/* PWA Install Banner */}

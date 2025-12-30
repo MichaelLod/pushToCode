@@ -7,19 +7,23 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Repository } from "@/types/session";
-import { getApiClient } from "@/lib/api";
+import ApiClient, { getApiClient } from "@/lib/api";
 import { getRepositories, updateRepository, setRepositories as persistRepositories } from "@/lib/storage";
 
 interface ProjectPickerProps {
   selectedRepoId: string | null;
   onSelectRepo: (repo: Repository | null) => void;
   className?: string;
+  serverUrl?: string;
+  apiKey?: string;
 }
 
 export function ProjectPicker({
   selectedRepoId,
   onSelectRepo,
   className = "",
+  serverUrl,
+  apiKey,
 }: ProjectPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [repos, setRepos] = useState<Repository[]>([]);
@@ -54,7 +58,13 @@ export function ProjectPicker({
     setError(null);
 
     try {
-      const client = getApiClient();
+      // Use provided credentials or fall back to singleton
+      const client = serverUrl && apiKey
+        ? new ApiClient({
+            baseUrl: serverUrl.replace(/^wss?:\/\//, 'https://').replace(/^ws:\/\//, 'http://'),
+            apiKey,
+          })
+        : getApiClient();
       const serverRepos = await client.listRepos();
 
       // Merge with cached repos to preserve lastUsed timestamps
@@ -79,7 +89,7 @@ export function ProjectPicker({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [serverUrl, apiKey]);
 
   // Fetch repos on mount and when dropdown opens
   useEffect(() => {
