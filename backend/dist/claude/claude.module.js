@@ -11,14 +11,15 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const claude_service_1 = require("./claude.service");
 const claude_gateway_1 = require("./claude.gateway");
+const terminal_buffer_service_1 = require("./terminal-buffer.service");
 let ClaudeModule = class ClaudeModule {
 };
 exports.ClaudeModule = ClaudeModule;
 exports.ClaudeModule = ClaudeModule = __decorate([
     (0, common_1.Module)({
         imports: [config_1.ConfigModule],
-        providers: [claude_service_1.ClaudeService, claude_gateway_1.ClaudeGateway],
-        exports: [claude_service_1.ClaudeService],
+        providers: [claude_service_1.ClaudeService, claude_gateway_1.ClaudeGateway, terminal_buffer_service_1.TerminalBufferService],
+        exports: [claude_service_1.ClaudeService, terminal_buffer_service_1.TerminalBufferService],
     })
 ], ClaudeModule);
 //# sourceMappingURL=claude.module.js.map

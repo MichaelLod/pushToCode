@@ -1,5 +1,13 @@
 export type OutputType = 'text' | 'code_block' | 'thinking' | 'file_change';
 export type SessionStatus = 'idle' | 'running' | 'stopped';
+export interface TerminalBufferData {
+    lines: string[];
+    cursorX: number;
+    cursorY: number;
+    cols: number;
+    rows: number;
+    ansiContent?: string;
+}
 export interface InitSessionMessage {
     type: 'init_session';
     sessionId: string;
@@ -44,4 +52,9 @@ export interface AuthRequiredMessage {
     authUrl: string;
     message: string;
 }
-export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage;
+export interface TerminalBufferMessage {
+    type: 'terminal_buffer';
+    sessionId: string;
+    buffer: TerminalBufferData;
+}
+export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage | TerminalBufferMessage;

@@ -350,6 +350,13 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                 status: 'running',
             });
             const emitter = await this.claudeService.startInteractiveSession(sessionId, projectPath);
+            emitter.on('terminal_buffer', (snapshot) => {
+                this.sendMessage(client, {
+                    type: 'terminal_buffer',
+                    sessionId,
+                    buffer: snapshot,
+                });
+            });
             emitter.on('pty_output', (output) => {
                 if (output) {
                     this.sendMessage(client, {

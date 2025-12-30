@@ -2,6 +2,7 @@ import { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
 import { OutputType } from '../common/interfaces/websocket.interface';
+import { TerminalBufferService } from './terminal-buffer.service';
 export interface ClaudeOutput {
     type: 'output' | 'error' | 'exit' | 'auth_required';
     content?: string;
@@ -12,6 +13,7 @@ export interface ClaudeOutput {
 }
 export declare class ClaudeService implements OnModuleInit {
     private configService;
+    private terminalBufferService;
     private readonly logger;
     private sessions;
     private pendingAuthUrl;
@@ -21,7 +23,7 @@ export declare class ClaudeService implements OnModuleInit {
     private readonly SESSION_METADATA_PATH;
     private readonly SESSION_TTL_MS;
     private persistedSessions;
-    constructor(configService: ConfigService);
+    constructor(configService: ConfigService, terminalBufferService: TerminalBufferService);
     onModuleInit(): Promise<void>;
     private loadPersistedSessions;
     private savePersistedSessions;

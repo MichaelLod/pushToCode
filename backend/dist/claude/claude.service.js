@@ -51,8 +51,10 @@ const events_1 = require("events");
 const pty = __importStar(require("node-pty"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const terminal_buffer_service_1 = require("./terminal-buffer.service");
 let ClaudeService = ClaudeService_1 = class ClaudeService {
     configService;
+    terminalBufferService;
     logger = new common_1.Logger(ClaudeService_1.name);
     sessions = new Map();
     pendingAuthUrl = null;
@@ -62,8 +64,9 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
     SESSION_METADATA_PATH = path.join(process.cwd(), '.claude-sessions.json');
     SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
     persistedSessions = new Map();
-    constructor(configService) {
+    constructor(configService, terminalBufferService) {
         this.configService = configService;
+        this.terminalBufferService = terminalBufferService;
     }
     async onModuleInit() {
         await this.verifyCliInstalled();
@@ -455,7 +458,12 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         session.ptyProcess = ptyProcess;
         this.logger.log(`Interactive PTY spawned with PID: ${ptyProcess.pid} in cwd: ${workingDir}, args: ${cliArgs.join(' ')}`);
+        this.terminalBufferService.createBuffer(sessionId, 120, 30);
         ptyProcess.onData((data) => {
+            this.terminalBufferService.write(sessionId, data);
+            this.terminalBufferService.getSnapshotThrottled(sessionId, (snapshot) => {
+                emitter.emit('terminal_buffer', snapshot);
+            });
             const filteredData = this.filterProcessingSpam(data, session);
             if (filteredData) {
                 emitter.emit('pty_output', filteredData);
@@ -481,6 +489,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         });
         ptyProcess.onExit(({ exitCode }) => {
             session.ptyProcess = undefined;
+            this.terminalBufferService.destroyBuffer(sessionId);
             emitter.emit('output', {
                 type: 'exit',
                 code: exitCode,
@@ -850,6 +859,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             session.ptyProcess.kill();
             session.ptyProcess = undefined;
         }
+        this.terminalBufferService.destroyBuffer(sessionId);
         if (session.process && !session.process.killed) {
             this.logger.log(`Stopping session ${sessionId}`);
             session.process.kill('SIGTERM');
@@ -872,6 +882,10 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
             if (session.process && !session.process.killed) {
                 session.process.kill('SIGKILL');
             }
+            if (session.ptyProcess) {
+                session.ptyProcess.kill();
+            }
+            this.terminalBufferService.destroyBuffer(sessionId);
             session.emitter.removeAllListeners();
             this.sessions.delete(sessionId);
             this.logger.log(`Session ${sessionId} destroyed`);
@@ -888,6 +902,7 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
 exports.ClaudeService = ClaudeService;
 exports.ClaudeService = ClaudeService = ClaudeService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [config_1.ConfigService])
+    __metadata("design:paramtypes", [config_1.ConfigService,
+        terminal_buffer_service_1.TerminalBufferService])
 ], ClaudeService);
 //# sourceMappingURL=claude.service.js.map
