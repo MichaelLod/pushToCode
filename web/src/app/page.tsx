@@ -111,6 +111,8 @@ export default function Home() {
           console.log("Session expired, re-initializing...");
           // Clear the initialized sessions and trigger re-init
           initializedSessionsRef.current.clear();
+          restoredSessionsRef.current.clear(); // Allow terminal output restore
+          lastInitTimeRef.current = 0; // Reset debounce to allow immediate reinit
           setSessionReinitTrigger(prev => prev + 1);
         }
         break;
