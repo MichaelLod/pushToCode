@@ -12,6 +12,7 @@ import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
 import { ServerMessage, TerminalBufferMessage } from "@/types/messages";
 import { InstallBanner } from "@/components/InstallBanner";
+import { NewSessionModal } from "@/components/NewSessionModal";
 import {
   appendTerminalOutput,
   getTerminalOutput,
@@ -20,7 +21,10 @@ import {
 export default function Home() {
   const settings = useSettings();
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const initializedSessionsRef = useRef<Set<string>>(new Set());
+  // Track pending file uploads to get actual paths from server
+  const pendingUploadsRef = useRef<Map<string, (path: string) => void>>(new Map());
   const [sessionReinitTrigger, setSessionReinitTrigger] = useState(0);
   const sessionInitInProgressRef = useRef<string | null>(null);
   const lastInitTimeRef = useRef<number>(0);
@@ -122,7 +126,15 @@ export default function Home() {
         console.log("Login interactive:", message.message);
         break;
       case "file_uploaded":
-        console.log("File uploaded:", message.filePath);
+        console.log("File uploaded:", message.filePath, "original:", message.filename);
+        // Resolve pending upload promise with actual path
+        if (message.filename && message.filePath) {
+          const resolver = pendingUploadsRef.current.get(message.filename);
+          if (resolver) {
+            resolver(message.filePath);
+            pendingUploadsRef.current.delete(message.filename);
+          }
+        }
         break;
       case "ping":
       case "pong":
@@ -169,6 +181,15 @@ export default function Home() {
       prevStatusRef.current = newStatus;
     },
   });
+
+  // On fresh page load, clear initialized sessions to force re-init on backend
+  // This ensures restored sessions from localStorage get their PTY respawned
+  useEffect(() => {
+    console.log("Fresh page load - clearing session init state for recovery");
+    initializedSessionsRef.current.clear();
+    restoredSessionsRef.current.clear();
+    lastInitTimeRef.current = 0;
+  }, []); // Empty deps = runs once on mount
 
   // Create initial session if none exist
   useEffect(() => {
@@ -379,10 +400,22 @@ export default function Home() {
     [currentSession, isConnected, send]
   );
 
-  // Handle new session
+  // Handle new session - show modal to select project
   const handleNewSession = useCallback(() => {
-    createSession({ name: `Terminal ${sessions.length + 1}` });
-  }, [createSession, sessions.length]);
+    setShowNewSessionModal(true);
+  }, []);
+
+  // Create session with selected project
+  const handleCreateSessionWithRepo = useCallback(
+    (repoPath: string, repoName: string) => {
+      createSession({
+        name: repoName,
+        repoPath: repoPath,
+      });
+      setShowNewSessionModal(false);
+    },
+    [createSession]
+  );
 
   // Show settings if not configured
   const needsConfig = !settings.serverUrl || !settings.apiKey;
@@ -506,6 +539,13 @@ export default function Home() {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {/* New Session Modal */}
+      <NewSessionModal
+        isOpen={showNewSessionModal}
+        onClose={() => setShowNewSessionModal(false)}
+        onConfirm={handleCreateSessionWithRepo}
+      />
 
       {/* PWA Install Banner */}
       <InstallBanner />
