@@ -83,8 +83,18 @@ export class ReposService {
   private async scanForNewRepos(): Promise<void> {
     try {
       this.logger.log(`Scanning for repos in: ${this.reposPath}`);
+
+      // Check if directory exists, create if not
+      try {
+        await fs.access(this.reposPath);
+      } catch {
+        this.logger.warn(`Repos directory does not exist: ${this.reposPath}, creating it...`);
+        await fs.mkdir(this.reposPath, { recursive: true });
+        return; // No repos to scan yet
+      }
+
       const entries = await fs.readdir(this.reposPath, { withFileTypes: true });
-      this.logger.log(`Found ${entries.length} entries in repos directory`);
+      this.logger.log(`Found ${entries.length} entries in repos directory: ${entries.map(e => e.name).join(', ') || '(empty)'}`);
       const knownPaths = new Set(Array.from(this.repos.values()).map(r => r.path));
       let added = 0;
 
