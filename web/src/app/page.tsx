@@ -22,6 +22,7 @@ export default function Home() {
   const settings = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [modalDismissed, setModalDismissed] = useState(false);
   const initializedSessionsRef = useRef<Set<string>>(new Set());
   // Track pending file uploads to get actual paths from server
   const pendingUploadsRef = useRef<Map<string, (path: string) => void>>(new Map());
@@ -192,22 +193,15 @@ export default function Home() {
   }, []); // Empty deps = runs once on mount
 
   // Show project selector if no sessions exist (after settings are configured)
+  // Don't show if user already dismissed it
   useEffect(() => {
-    // Wait until settings are loaded and configured before showing modal
     const isConfigured = settings.isLoaded && settings.serverUrl && settings.apiKey;
 
-    console.log("Session check:", {
-      sessionsCount: sessions.length,
-      isLoaded: settings.isLoaded,
-      isConfigured,
-      showNewSessionModal,
-    });
-
-    if (sessions.length === 0 && isConfigured && !showNewSessionModal) {
+    if (sessions.length === 0 && isConfigured && !showNewSessionModal && !modalDismissed) {
       console.log("No sessions found, showing project selector");
       setShowNewSessionModal(true);
     }
-  }, [sessions.length, settings.isLoaded, settings.serverUrl, settings.apiKey, showNewSessionModal]);
+  }, [sessions.length, settings.isLoaded, settings.serverUrl, settings.apiKey, showNewSessionModal, modalDismissed]);
 
   // Handle app visibility change (PWA resume from background)
   useEffect(() => {
@@ -445,6 +439,7 @@ export default function Home() {
         repoPath: repoPath,
       });
       setShowNewSessionModal(false);
+      setModalDismissed(false); // Reset so modal shows again if all sessions closed
     },
     [createSession]
   );
@@ -577,7 +572,10 @@ export default function Home() {
       {/* New Session Modal */}
       <NewSessionModal
         isOpen={showNewSessionModal}
-        onClose={() => setShowNewSessionModal(false)}
+        onClose={() => {
+          setShowNewSessionModal(false);
+          setModalDismissed(true);
+        }}
         onConfirm={handleCreateSessionWithRepo}
       />
 
