@@ -1,4 +1,13 @@
 import type { NextConfig } from "next";
+import { execSync } from "child_process";
+
+// Get git commit hash at build time
+let gitHash = "dev";
+try {
+  gitHash = execSync("git rev-parse --short HEAD").toString().trim();
+} catch {
+  // Ignore errors (e.g., not a git repo)
+}
 
 /**
  * Next.js Configuration
@@ -30,6 +39,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001",
+    NEXT_PUBLIC_VERSION: gitHash,
   },
 
   // Turbopack configuration (Next.js 16+ uses Turbopack by default)
