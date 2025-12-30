@@ -187,12 +187,30 @@ export default function Home() {
 
   // On fresh page load, clear initialized sessions to force re-init on backend
   // This ensures restored sessions from localStorage get their PTY respawned
+  const isFirstLoadRef = useRef(true);
   useEffect(() => {
     console.log("Fresh page load - clearing session init state for recovery");
     initializedSessionsRef.current.clear();
     restoredSessionsRef.current.clear();
     lastInitTimeRef.current = 0;
+    isFirstLoadRef.current = true;
   }, []); // Empty deps = runs once on mount
+
+  // Force session init after WebSocket connects on fresh page load
+  // This handles the case where the app was fully closed and reopened
+  useEffect(() => {
+    if (isConnected && currentSession && isFirstLoadRef.current) {
+      console.log("First load with connection - forcing session init for:", currentSession.id);
+      isFirstLoadRef.current = false;
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
+        if (!initializedSessionsRef.current.has(currentSession.id)) {
+          console.log("Session not initialized yet, triggering reinit");
+          setSessionReinitTrigger(prev => prev + 1);
+        }
+      }, 500);
+    }
+  }, [isConnected, currentSession]);
 
   // Show project selector if no sessions exist (after settings are configured)
   // Don't show if user already dismissed it
@@ -257,6 +275,12 @@ export default function Home() {
   // Also re-initializes when sessionReinitTrigger changes (after session expiry)
   // Debounced to prevent duplicate initialization on mobile (min 2s between inits)
   useEffect(() => {
+    console.log("Session init effect triggered:", {
+      isConnected,
+      currentSessionId: currentSession?.id,
+      sessionReinitTrigger,
+      initialized: currentSession ? initializedSessionsRef.current.has(currentSession.id) : 'N/A'
+    });
     if (!isConnected || !currentSession) return;
 
     const sessionId = currentSession.id;
@@ -297,11 +321,12 @@ export default function Home() {
 
     initializedSessionsRef.current.add(sessionId);
 
-    send({
+    const sent = send({
       type: "start_interactive",
       sessionId: sessionId,
       projectPath: currentSession.repoPath || "/repos", // Default to /repos
     });
+    console.log("start_interactive sent:", sent, "for session:", sessionId, "path:", currentSession.repoPath || "/repos");
 
     // Clear in-progress flag after a short delay
     setTimeout(() => {
