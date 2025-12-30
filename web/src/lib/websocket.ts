@@ -113,6 +113,23 @@ export class WebSocketClient {
   }
 
   /**
+   * Check connection health and reconnect if needed
+   * Called when app resumes from background
+   */
+  checkConnection(): void {
+    // If we think we're connected but socket is actually closed, reconnect
+    if (this.status === "connected" && this.ws?.readyState !== WebSocket.OPEN) {
+      console.log("Connection stale, reconnecting...");
+      this.cleanup();
+      this.setStatus("disconnected");
+      this.connect();
+    } else if (this.status === "disconnected" && !this.isIntentionallyClosed) {
+      console.log("Was disconnected, reconnecting...");
+      this.connect();
+    }
+  }
+
+  /**
    * Update API key (for authentication)
    */
   setApiKey(apiKey: string): void {

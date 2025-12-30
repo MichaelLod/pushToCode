@@ -138,7 +138,7 @@ export default function Home() {
   const STRICT_MODE_RECONNECT_THRESHOLD = 500; // ms - Strict Mode reconnects faster than this
 
   // WebSocket connection
-  const { status, send, isConnected } = useWebSocket({
+  const { status, send, isConnected, checkConnection } = useWebSocket({
     url: wsUrl,
     apiKey: settings.apiKey,
     autoConnect: !!settings.serverUrl && !!settings.apiKey,
@@ -176,6 +176,54 @@ export default function Home() {
       createSession({ name: "Terminal 1" });
     }
   }, [sessions.length, createSession, settings.isLoaded]);
+
+  // Handle app visibility change (PWA resume from background)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("App became visible, checking connection...");
+
+        // Check if WebSocket connection is still alive (iOS may have killed it)
+        // This will reconnect if the socket is stale
+        checkConnection();
+
+        // Re-focus terminal when app comes back
+        setTimeout(() => {
+          terminalFocusRef.current?.();
+        }, 100);
+
+        // If we have a session, verify it's still active on the server
+        if (currentSession) {
+          const sessionId = currentSession.id;
+          if (initializedSessionsRef.current.has(sessionId)) {
+            console.log("Sending ping to verify session is alive...");
+            // Send a ping to test the connection - if session is dead,
+            // the server will respond with an error which triggers re-init
+            // via handleServerMessage's error handler
+            const sent = send({
+              type: "pty_input",
+              sessionId: sessionId,
+              data: "", // Empty input just to test connection
+            });
+            if (!sent) {
+              // Message couldn't be sent - connection is definitely dead
+              // Clear session state to force re-initialization
+              console.log("Connection dead, clearing session state for re-init");
+              initializedSessionsRef.current.delete(sessionId);
+              restoredSessionsRef.current.delete(sessionId);
+              lastInitTimeRef.current = 0;
+              setSessionReinitTrigger(prev => prev + 1);
+            }
+          }
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentSession, checkConnection, send]);
 
   // Start interactive session on backend when connected
   // Also re-initializes when sessionReinitTrigger changes (after session expiry)

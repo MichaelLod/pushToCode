@@ -27,6 +27,7 @@ export interface UseWebSocketReturn {
   connect: () => void;
   disconnect: () => void;
   send: (message: ClientMessage) => boolean;
+  checkConnection: () => void;
   client: WebSocketClient | null;
 }
 
@@ -108,12 +109,17 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     return clientRef.current?.send(message) ?? false;
   }, []);
 
+  const checkConnection = useCallback(() => {
+    clientRef.current?.checkConnection();
+  }, []);
+
   return {
     status,
     isConnected: status === "connected",
     connect,
     disconnect,
     send,
+    checkConnection,
     client: clientRef.current, // eslint-disable-line react-hooks/refs -- Expose instance
   };
 }
