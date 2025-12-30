@@ -123,13 +123,45 @@ EOF
   chown claude:claude /home/claude/.netrc
   chmod 600 /home/claude/.netrc
 
+  # Try to get GitHub user info from API if not provided via env vars
+  GIT_NAME="${GIT_USER_NAME:-}"
+  GIT_EMAIL="${GIT_USER_EMAIL:-}"
+
+  if [ -z "$GIT_NAME" ] || [ -z "$GIT_EMAIL" ]; then
+    echo "Fetching GitHub user info from API..."
+    GITHUB_USER_JSON=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/user 2>/dev/null || echo "{}")
+
+    if [ -z "$GIT_NAME" ]; then
+      # Try login (username) first, fallback to name
+      GIT_NAME=$(echo "$GITHUB_USER_JSON" | grep -o '"login"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+      if [ -z "$GIT_NAME" ]; then
+        GIT_NAME=$(echo "$GITHUB_USER_JSON" | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+      fi
+      [ -z "$GIT_NAME" ] && GIT_NAME="MichaelLod"
+    fi
+
+    if [ -z "$GIT_EMAIL" ]; then
+      GIT_EMAIL=$(echo "$GITHUB_USER_JSON" | grep -o '"email"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+      # If email is null/empty, construct from username
+      if [ -z "$GIT_EMAIL" ] || [ "$GIT_EMAIL" = "null" ]; then
+        GIT_LOGIN=$(echo "$GITHUB_USER_JSON" | grep -o '"login"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+        if [ -n "$GIT_LOGIN" ]; then
+          GIT_EMAIL="${GIT_LOGIN}@users.noreply.github.com"
+        else
+          GIT_EMAIL="michael.lodzik@gmail.com"
+        fi
+      fi
+    fi
+    echo "GitHub user: $GIT_NAME <$GIT_EMAIL>"
+  fi
+
   # Create git config for claude user (not root!)
   cat > /home/claude/.gitconfig << EOF
 [credential]
     helper = store
 [user]
-    email = ${GIT_USER_EMAIL:-michael.lodzik@gmail.com}
-    name = ${GIT_USER_NAME:-MichaelLod}
+    email = ${GIT_EMAIL}
+    name = ${GIT_NAME}
 [init]
     defaultBranch = main
 [safe]
