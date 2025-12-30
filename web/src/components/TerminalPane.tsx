@@ -309,15 +309,38 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       isConnected: () => isConnected,
     }), [handleTerminalInput, sendTranscription, handleFileUpload, status, isConnected]);
 
+    // Show loading state while connecting or initializing
+    const isLoading = !isConnected || !isSessionReady;
+    const loadingMessage = !isConnected
+      ? status === "connecting" ? "Connecting..." : "Disconnected"
+      : "Starting session...";
+
     return (
-      <Terminal
-        sessionId={sessionId}
-        onInput={handleTerminalInput}
-        onReady={handleTerminalReady}
-        fontSize={fontSize}
-        fontFamily={fontFamily}
-        className="h-full"
-      />
+      <div className="relative h-full">
+        <Terminal
+          sessionId={sessionId}
+          onInput={handleTerminalInput}
+          onReady={handleTerminalReady}
+          fontSize={fontSize}
+          fontFamily={fontFamily}
+          className="h-full"
+        />
+
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1b26]/95 z-10">
+            <div className="flex flex-col items-center gap-4">
+              {/* Claude-style spinner - three pulsing dots */}
+              <div className="flex items-center gap-2">
+                <div className="loading-dot w-3 h-3 rounded-full bg-[#7aa2f7]" />
+                <div className="loading-dot w-3 h-3 rounded-full bg-[#7aa2f7]" />
+                <div className="loading-dot w-3 h-3 rounded-full bg-[#7aa2f7]" />
+              </div>
+              <p className="text-[#a9b1d6] text-sm">{loadingMessage}</p>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 );
