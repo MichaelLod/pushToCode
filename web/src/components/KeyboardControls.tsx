@@ -35,6 +35,7 @@ const KEYBOARD_KEYS: KeyButton[] = [
   { key: "ArrowLeft", label: "\u2190" },
   { key: "ArrowRight", label: "\u2192" },
   { key: "Control+c", label: "^C" },
+  { key: "Paste", label: "^V" },
 ];
 
 /**
@@ -45,7 +46,18 @@ export function KeyboardControls({
   onKeyPress,
 }: KeyboardControlsProps) {
   const handleKeyClick = useCallback(
-    (key: string) => {
+    async (key: string) => {
+      if (key === "Paste") {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            onKeyPress(text);
+          }
+        } catch {
+          // Clipboard access denied or unavailable
+        }
+        return;
+      }
       // Translate key name to terminal escape sequence
       const sequence = KEY_SEQUENCES[key] || key;
       onKeyPress(sequence);
