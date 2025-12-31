@@ -46,6 +46,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   useEffect(() => {
     // Don't create client without required params
     if (!url || !sessionId) {
+      // Still need to cleanup any existing client
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+        clientRef.current = null;
+      }
       return;
     }
 
@@ -54,6 +59,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       clientRef.current.disconnect();
       clientRef.current = null;
     }
+
+    // Reset status for new client
+    setStatus("disconnected");
 
     const clientOptions: WebSocketClientOptions = {
       url,

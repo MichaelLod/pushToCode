@@ -52,7 +52,9 @@ export class WebSocketClient {
    * Connect to WebSocket server
    */
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    // Don't reconnect if already open or connecting
+    if (this.ws?.readyState === WebSocket.OPEN ||
+        this.ws?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
