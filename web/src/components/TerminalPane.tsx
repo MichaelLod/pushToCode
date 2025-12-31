@@ -54,6 +54,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
     const [isSessionReady, setIsSessionReady] = useState(false);
     const hasRestoredOutputRef = useRef(false);
     const useBufferModeRef = useRef(false);
+    const lastBufferContentRef = useRef<string>("");
     const pendingUploadsRef = useRef<Map<string, (path: string) => void>>(new Map());
 
     // Terminal write/focus/fit refs
@@ -90,8 +91,12 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
           const buffer = (message as TerminalBufferMessage).buffer;
           if (buffer) {
             const content = buffer.ansiContent ?? buffer.lines.join("\n");
-            terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
-            localStorage.setItem(`terminal_output_${sessionId}`, content);
+            // Only update if content actually changed to prevent flickering
+            if (content !== lastBufferContentRef.current) {
+              lastBufferContentRef.current = content;
+              terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
+              localStorage.setItem(`terminal_output_${sessionId}`, content);
+            }
           }
           break;
 
@@ -282,6 +287,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
         const savedOutput = getTerminalOutput(sessionId);
         if (savedOutput) {
           terminal.write(savedOutput);
+          lastBufferContentRef.current = savedOutput; // Sync ref to prevent flicker
         }
         hasRestoredOutputRef.current = true;
       }

@@ -63,8 +63,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     // Reset status for new client
     setStatus("disconnected");
 
+    // Include sessionId in URL to ensure each session has a distinct connection
+    // This prevents browser connection pooling/reuse issues with multiple tabs
+    const sessionUrl = `${url}${url.includes("?") ? "&" : "?"}sessionId=${encodeURIComponent(sessionId)}`;
+
     const clientOptions: WebSocketClientOptions = {
-      url,
+      url: sessionUrl,
       apiKey,
       reconnect: true,
       reconnectInterval: 1000,
