@@ -98,7 +98,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
             // Only update if content actually changed to prevent flickering
             if (content !== lastBufferContentRef.current) {
               lastBufferContentRef.current = content;
-              terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
+              // \x1b[H = cursor home, \x1b[2J = clear screen, \x1b[3J = clear scrollback
+              terminalWriteRef.current?.("\x1b[H\x1b[2J\x1b[3J" + content);
               // Use the same storage function as legacy mode for consistency
               setTerminalOutput(sessionId, content);
             }
@@ -122,7 +123,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
             const content = resumedBuffer.ansiContent ?? resumedBuffer.lines.join("\n");
             if (content) {
               lastBufferContentRef.current = content;
-              terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
+              // \x1b[H = cursor home, \x1b[2J = clear screen, \x1b[3J = clear scrollback
+              terminalWriteRef.current?.("\x1b[H\x1b[2J\x1b[3J" + content);
               setTerminalOutput(sessionId, content);
             }
           }
