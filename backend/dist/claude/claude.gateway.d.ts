@@ -27,6 +27,8 @@ export declare class ClaudeGateway implements OnGatewayInit, OnGatewayConnection
     private handleLogin;
     private handleSubmitAuthCode;
     private handleStartInteractive;
+    private handleResumeSession;
+    private handleDestroySession;
     private handlePtyInput;
     private handleUploadFile;
     private getExtFromMime;

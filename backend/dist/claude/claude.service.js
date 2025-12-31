@@ -898,6 +898,27 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         const session = this.sessions.get(sessionId);
         return !!(session?.process && !session.process.killed);
     }
+    hasActiveSession(sessionId) {
+        const session = this.sessions.get(sessionId);
+        const hasBuffer = this.terminalBufferService.hasBuffer(sessionId);
+        return !!(session && hasBuffer);
+    }
+    isPtyRunning(sessionId) {
+        const session = this.sessions.get(sessionId);
+        return !!(session?.ptyProcess);
+    }
+    getSessionBufferSnapshot(sessionId) {
+        return this.terminalBufferService.getSnapshot(sessionId, true);
+    }
+    reattachSession(sessionId) {
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            this.logger.warn(`Cannot reattach: session ${sessionId} not found`);
+            return null;
+        }
+        this.logger.log(`Reattaching to session ${sessionId}, has PTY: ${!!session.ptyProcess}`);
+        return session.emitter;
+    }
 };
 exports.ClaudeService = ClaudeService;
 exports.ClaudeService = ClaudeService = ClaudeService_1 = __decorate([

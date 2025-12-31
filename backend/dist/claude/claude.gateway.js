@@ -118,6 +118,12 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                 case 'start_interactive':
                     await this.handleStartInteractive(client, data);
                     break;
+                case 'resume_session':
+                    await this.handleResumeSession(client, data);
+                    break;
+                case 'destroy_session':
+                    await this.handleDestroySession(client, data);
+                    break;
                 case 'upload_file':
                     await this.handleUploadFile(client, data);
                     break;
@@ -391,6 +397,84 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
         }
         catch (error) {
             this.sendError(client, sessionId, 'START_INTERACTIVE_FAILED', error.message);
+        }
+    }
+    async handleResumeSession(client, data) {
+        const { sessionId, projectPath } = data;
+        this.logger.log(`Resume session request: ${sessionId}`);
+        if (!this.claudeService.hasActiveSession(sessionId)) {
+            this.logger.log(`Session ${sessionId} not found, sending session_not_found`);
+            this.sendMessage(client, {
+                type: 'session_not_found',
+                sessionId,
+            });
+            return;
+        }
+        try {
+            client.sessionIds.add(sessionId);
+            const buffer = this.claudeService.getSessionBufferSnapshot(sessionId);
+            const isRunning = this.claudeService.isPtyRunning(sessionId);
+            this.logger.log(`Session ${sessionId} found, PTY running: ${isRunning}, has buffer: ${!!buffer}`);
+            this.sendMessage(client, {
+                type: 'session_resumed',
+                sessionId,
+                buffer: buffer || { lines: [], cursorX: 0, cursorY: 0, cols: 120, rows: 30 },
+                isRunning,
+            });
+            const emitter = this.claudeService.reattachSession(sessionId);
+            if (emitter) {
+                emitter.on('terminal_buffer', (snapshot) => {
+                    this.sendMessage(client, {
+                        type: 'terminal_buffer',
+                        sessionId,
+                        buffer: snapshot,
+                    });
+                });
+                emitter.on('pty_output', (output) => {
+                    if (output) {
+                        this.sendMessage(client, {
+                            type: 'pty_output',
+                            sessionId,
+                            content: output,
+                        });
+                    }
+                });
+                emitter.on('output', (output) => {
+                    if (output.type === 'exit') {
+                        this.sendMessage(client, {
+                            type: 'status',
+                            sessionId,
+                            status: 'idle',
+                        });
+                    }
+                });
+            }
+            this.sendMessage(client, {
+                type: 'status',
+                sessionId,
+                status: isRunning ? 'running' : 'idle',
+            });
+        }
+        catch (error) {
+            this.logger.error(`Resume session failed: ${error.message}`);
+            this.sendError(client, sessionId, 'RESUME_FAILED', error.message);
+        }
+    }
+    async handleDestroySession(client, data) {
+        const { sessionId } = data;
+        this.logger.log(`Destroy session request: ${sessionId}`);
+        try {
+            this.claudeService.destroySession(sessionId);
+            client.sessionIds.delete(sessionId);
+            this.sendMessage(client, {
+                type: 'session_destroyed',
+                sessionId,
+            });
+            this.logger.log(`Session ${sessionId} destroyed successfully`);
+        }
+        catch (error) {
+            this.logger.error(`Destroy session failed: ${error.message}`);
+            this.sendError(client, sessionId, 'DESTROY_FAILED', error.message);
         }
     }
     handlePtyInput(client, message) {

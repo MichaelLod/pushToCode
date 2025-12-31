@@ -162,6 +162,12 @@ export class ClaudeGateway
         case 'start_interactive':
           await this.handleStartInteractive(client, data);
           break;
+        case 'resume_session':
+          await this.handleResumeSession(client, data);
+          break;
+        case 'destroy_session':
+          await this.handleDestroySession(client, data);
+          break;
         case 'upload_file':
           await this.handleUploadFile(client, data);
           break;
@@ -506,6 +512,114 @@ export class ClaudeGateway
       });
     } catch (error) {
       this.sendError(client, sessionId, 'START_INTERACTIVE_FAILED', error.message);
+    }
+  }
+
+  private async handleResumeSession(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string; projectPath: string },
+  ): Promise<void> {
+    const { sessionId, projectPath } = data;
+    this.logger.log(`Resume session request: ${sessionId}`);
+
+    // Check if session exists with a buffer we can resume
+    if (!this.claudeService.hasActiveSession(sessionId)) {
+      this.logger.log(`Session ${sessionId} not found, sending session_not_found`);
+      this.sendMessage(client, {
+        type: 'session_not_found',
+        sessionId,
+      });
+      return;
+    }
+
+    try {
+      client.sessionIds.add(sessionId);
+
+      // Get current buffer snapshot
+      const buffer = this.claudeService.getSessionBufferSnapshot(sessionId);
+      const isRunning = this.claudeService.isPtyRunning(sessionId);
+
+      this.logger.log(`Session ${sessionId} found, PTY running: ${isRunning}, has buffer: ${!!buffer}`);
+
+      // Send session_resumed with current buffer state
+      this.sendMessage(client, {
+        type: 'session_resumed',
+        sessionId,
+        buffer: buffer || { lines: [], cursorX: 0, cursorY: 0, cols: 120, rows: 30 },
+        isRunning,
+      });
+
+      // Re-attach to the session's emitter for future updates
+      const emitter = this.claudeService.reattachSession(sessionId);
+      if (emitter) {
+        // Stream terminal buffer snapshots to client
+        emitter.on('terminal_buffer', (snapshot: TerminalBufferSnapshot) => {
+          this.sendMessage(client, {
+            type: 'terminal_buffer',
+            sessionId,
+            buffer: snapshot as TerminalBufferData,
+          });
+        });
+
+        // Legacy: Stream raw PTY output
+        emitter.on('pty_output', (output: string) => {
+          if (output) {
+            this.sendMessage(client, {
+              type: 'pty_output',
+              sessionId,
+              content: output,
+            });
+          }
+        });
+
+        // Handle session exit
+        emitter.on('output', (output: ClaudeOutput) => {
+          if (output.type === 'exit') {
+            this.sendMessage(client, {
+              type: 'status',
+              sessionId,
+              status: 'idle',
+            });
+          }
+        });
+      }
+
+      // Send current status
+      this.sendMessage(client, {
+        type: 'status',
+        sessionId,
+        status: isRunning ? 'running' : 'idle',
+      });
+    } catch (error) {
+      this.logger.error(`Resume session failed: ${error.message}`);
+      this.sendError(client, sessionId, 'RESUME_FAILED', error.message);
+    }
+  }
+
+  private async handleDestroySession(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string },
+  ): Promise<void> {
+    const { sessionId } = data;
+    this.logger.log(`Destroy session request: ${sessionId}`);
+
+    try {
+      // Destroy the session (kills PTY, clears buffer)
+      this.claudeService.destroySession(sessionId);
+
+      // Remove from client's tracked sessions
+      client.sessionIds.delete(sessionId);
+
+      // Confirm destruction
+      this.sendMessage(client, {
+        type: 'session_destroyed',
+        sessionId,
+      });
+
+      this.logger.log(`Session ${sessionId} destroyed successfully`);
+    } catch (error) {
+      this.logger.error(`Destroy session failed: ${error.message}`);
+      this.sendError(client, sessionId, 'DESTROY_FAILED', error.message);
     }
   }
 

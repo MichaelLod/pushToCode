@@ -103,6 +103,15 @@ export default function Home() {
     pane?.sendInput(data);
   }, [currentSession]);
 
+  // Handle closing a session - notify backend then remove from frontend
+  const handleCloseSession = useCallback((sessionId: string) => {
+    // Tell backend to destroy the session first
+    const pane = terminalPaneRefs.current[sessionId];
+    pane?.destroySession();
+    // Then remove from frontend
+    removeSession(sessionId);
+  }, [removeSession]);
+
   // Handle new session
   const handleNewSession = useCallback(() => {
     setShowNewSessionModal(true);
@@ -181,7 +190,7 @@ export default function Home() {
           sessions={sessions}
           currentSessionId={currentSession?.id ?? null}
           onSelectSession={selectSession}
-          onCloseSession={removeSession}
+          onCloseSession={handleCloseSession}
           onAddSession={handleNewSession}
         />
 

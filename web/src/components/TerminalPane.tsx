@@ -9,11 +9,12 @@ import { useEffect, useCallback, useRef, useState, forwardRef, useImperativeHand
 import { Terminal } from "@/components/Terminal";
 import { useWebSocket, ConnectionStatus } from "@/hooks/useWebSocket";
 import { useTerminal } from "@/hooks/useTerminal";
-import { ServerMessage, TerminalBufferMessage } from "@/types/messages";
+import { ServerMessage, TerminalBufferMessage, SessionResumedMessage } from "@/types/messages";
 import { FileAttachment } from "@/components/FileUpload";
 import {
   appendTerminalOutput,
   getTerminalOutput,
+  setTerminalOutput,
 } from "@/lib/storage";
 
 export interface TerminalPaneProps {
@@ -34,6 +35,7 @@ export interface TerminalPaneHandle {
   uploadFiles: (attachments: FileAttachment[]) => Promise<void>;
   getStatus: () => ConnectionStatus;
   isConnected: () => boolean;
+  destroySession: () => void;  // Notify backend to destroy session (for X button)
 }
 
 export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
@@ -56,6 +58,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
     const useBufferModeRef = useRef(false);
     const lastBufferContentRef = useRef<string>("");
     const pendingUploadsRef = useRef<Map<string, (path: string) => void>>(new Map());
+    const wasConnectedRef = useRef(false); // Track previous connection state for reconnect handling
+    const isResumingRef = useRef(false); // Track if we're waiting for resume response
 
     // Terminal write/focus/fit refs
     const terminalWriteRef = useRef<((data: string) => void) | null>(null);
@@ -95,7 +99,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
             if (content !== lastBufferContentRef.current) {
               lastBufferContentRef.current = content;
               terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
-              localStorage.setItem(`terminal_output_${sessionId}`, content);
+              // Use the same storage function as legacy mode for consistency
+              setTerminalOutput(sessionId, content);
             }
           }
           break;
@@ -103,6 +108,40 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
         case "interactive_started":
           console.log(`[${sessionId}] Interactive session started`);
           setIsSessionReady(true);
+          break;
+
+        case "session_resumed":
+          // Successfully resumed existing session
+          console.log(`[${sessionId}] Session resumed, PTY running: ${(message as SessionResumedMessage).isRunning}`);
+          isResumingRef.current = false;
+          useBufferModeRef.current = true;
+
+          // Display the resumed buffer content
+          const resumedBuffer = (message as SessionResumedMessage).buffer;
+          if (resumedBuffer) {
+            const content = resumedBuffer.ansiContent ?? resumedBuffer.lines.join("\n");
+            if (content) {
+              lastBufferContentRef.current = content;
+              terminalWriteRef.current?.("\x1b[H\x1b[2J" + content);
+              setTerminalOutput(sessionId, content);
+            }
+          }
+          setIsSessionReady(true);
+          break;
+
+        case "session_not_found":
+          // Session doesn't exist on backend, start a new one
+          console.log(`[${sessionId}] Session not found, starting new interactive session`);
+          isResumingRef.current = false;
+          send({
+            type: "start_interactive",
+            sessionId,
+            projectPath: repoPath || "/repos",
+          });
+          break;
+
+        case "session_destroyed":
+          console.log(`[${sessionId}] Session destroyed by server`);
           break;
 
         case "session_ready":
@@ -113,8 +152,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
           console.error(`[${sessionId}] Error:`, message.message);
           // On session error, mark as not ready to trigger re-init
           if (message.message?.includes("No active PTY session") ||
-              message.message?.includes("Session not found")) {
+              message.message?.includes("Session not found") ||
+              message.message?.includes("pty") ||
+              message.message?.includes("session")) {
+            console.log(`[${sessionId}] Session error detected, will re-init`);
             setIsSessionReady(false);
+            // Reset buffer state so fresh data can come in
+            useBufferModeRef.current = false;
+            lastBufferContentRef.current = "";
           }
           break;
 
@@ -150,17 +195,32 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       onStatusChange,
     });
 
-    // Start interactive session when connected
+    // Handle connection state changes - reset on reconnect
     useEffect(() => {
-      if (!isConnected || isSessionReady) return;
+      if (isConnected && !wasConnectedRef.current) {
+        // Just reconnected - reset state to try resuming
+        console.log(`[${sessionId}] Connection established, will try to resume`);
+        useBufferModeRef.current = false;
+        lastBufferContentRef.current = "";
+        isResumingRef.current = false; // Reset so we try to resume
+        setIsSessionReady(false); // Trigger resume attempt
+      }
+      wasConnectedRef.current = isConnected;
+    }, [isConnected, sessionId]);
 
-      console.log(`[${sessionId}] Starting interactive session, path:`, repoPath || "/repos");
+    // Try to resume session when connected, fall back to starting new one
+    useEffect(() => {
+      if (!isConnected || isSessionReady || isResumingRef.current) return;
 
-      // Reset buffer mode for fresh session
-      useBufferModeRef.current = false;
+      console.log(`[${sessionId}] Attempting to resume session, path:`, repoPath || "/repos");
 
+      // Mark that we're waiting for resume response
+      isResumingRef.current = true;
+
+      // Try to resume existing session first
+      // If session_not_found is received, the handler will start a new session
       send({
-        type: "start_interactive",
+        type: "resume_session",
         sessionId,
         projectPath: repoPath || "/repos",
       });
@@ -323,6 +383,15 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       terminalFocusRef.current?.();
     }, [isConnected, sessionId, send]);
 
+    // Destroy session on backend (for X button)
+    const destroySession = useCallback(() => {
+      console.log(`[${sessionId}] Destroying session`);
+      send({
+        type: "destroy_session",
+        sessionId,
+      });
+    }, [sessionId, send]);
+
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
       focus: () => terminalFocusRef.current?.(),
@@ -331,7 +400,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       uploadFiles: handleFileUpload,
       getStatus: () => status,
       isConnected: () => isConnected,
-    }), [handleTerminalInput, sendTranscription, handleFileUpload, status, isConnected]);
+      destroySession,
+    }), [handleTerminalInput, sendTranscription, handleFileUpload, status, isConnected, destroySession]);
 
     // Show loading state while connecting or initializing
     const isLoading = !isConnected || !isSessionReady;

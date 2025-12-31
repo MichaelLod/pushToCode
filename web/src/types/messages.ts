@@ -16,7 +16,9 @@ export type ClientMessageType =
   | "pty_input"
   | "login"
   | "start_interactive"
-  | "submit_auth_code";
+  | "submit_auth_code"
+  | "resume_session"
+  | "destroy_session";
 
 export interface InitSessionMessage {
   type: "init_session";
@@ -75,6 +77,17 @@ export interface UploadFileMessage {
   data: string; // base64 encoded
 }
 
+export interface ResumeSessionMessage {
+  type: "resume_session";
+  sessionId: string;
+  projectPath: string;
+}
+
+export interface DestroySessionMessage {
+  type: "destroy_session";
+  sessionId: string;
+}
+
 export type ClientMessage =
   | InitSessionMessage
   | ExecuteMessage
@@ -85,7 +98,9 @@ export type ClientMessage =
   | LoginMessage
   | StartInteractiveMessage
   | SubmitAuthCodeMessage
-  | UploadFileMessage;
+  | UploadFileMessage
+  | ResumeSessionMessage
+  | DestroySessionMessage;
 
 // ============================================
 // Server -> Client Messages
@@ -105,7 +120,10 @@ export type ServerMessageType =
   | "terminal_buffer"
   | "login_interactive"
   | "interactive_started"
-  | "file_uploaded";
+  | "file_uploaded"
+  | "session_resumed"
+  | "session_not_found"
+  | "session_destroyed";
 
 // Terminal buffer data from server-side rendering
 export interface TerminalBufferData {
@@ -198,6 +216,24 @@ export interface TerminalBufferMessage {
   buffer: TerminalBufferData;
 }
 
+// Session resume/destroy response messages
+export interface SessionResumedMessage {
+  type: "session_resumed";
+  sessionId: string;
+  buffer: TerminalBufferData;
+  isRunning: boolean;  // Whether PTY is still running
+}
+
+export interface SessionNotFoundMessage {
+  type: "session_not_found";
+  sessionId: string;
+}
+
+export interface SessionDestroyedMessage {
+  type: "session_destroyed";
+  sessionId: string;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
@@ -212,7 +248,10 @@ export type ServerMessage =
   | TerminalBufferMessage
   | LoginInteractiveMessage
   | InteractiveStartedMessage
-  | FileUploadedMessage;
+  | FileUploadedMessage
+  | SessionResumedMessage
+  | SessionNotFoundMessage
+  | SessionDestroyedMessage;
 
 // ============================================
 // Type Guards

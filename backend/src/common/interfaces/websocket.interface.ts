@@ -30,7 +30,18 @@ export interface StopMessage {
   sessionId: string;
 }
 
-export type ClientMessage = InitSessionMessage | ExecuteMessage | StopMessage;
+export interface ResumeSessionMessage {
+  type: 'resume_session';
+  sessionId: string;
+  projectPath: string;
+}
+
+export interface DestroySessionMessage {
+  type: 'destroy_session';
+  sessionId: string;
+}
+
+export type ClientMessage = InitSessionMessage | ExecuteMessage | StopMessage | ResumeSessionMessage | DestroySessionMessage;
 
 // Server -> Client Messages
 export interface SessionReadyMessage {
@@ -73,10 +84,31 @@ export interface TerminalBufferMessage {
   buffer: TerminalBufferData;
 }
 
+// Session resume/destroy response messages
+export interface SessionResumedMessage {
+  type: 'session_resumed';
+  sessionId: string;
+  buffer: TerminalBufferData;
+  isRunning: boolean;  // Whether PTY is still running
+}
+
+export interface SessionNotFoundMessage {
+  type: 'session_not_found';
+  sessionId: string;
+}
+
+export interface SessionDestroyedMessage {
+  type: 'session_destroyed';
+  sessionId: string;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
   | OutputMessage
   | ErrorMessage
   | AuthRequiredMessage
-  | TerminalBufferMessage;
+  | TerminalBufferMessage
+  | SessionResumedMessage
+  | SessionNotFoundMessage
+  | SessionDestroyedMessage;

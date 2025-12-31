@@ -1133,4 +1133,38 @@ export class ClaudeService implements OnModuleInit {
     const session = this.sessions.get(sessionId);
     return !!(session?.process && !session.process.killed);
   }
+
+  // Check if session exists and has a terminal buffer (for resume)
+  // Session may exist even if PTY exited - we can still show the buffer
+  hasActiveSession(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    const hasBuffer = this.terminalBufferService.hasBuffer(sessionId);
+    return !!(session && hasBuffer);
+  }
+
+  // Check if session's PTY is still running (vs exited)
+  isPtyRunning(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    return !!(session?.ptyProcess);
+  }
+
+  // Get the current terminal buffer snapshot for a session
+  getSessionBufferSnapshot(sessionId: string): import('./terminal-buffer.service').TerminalBufferSnapshot | null {
+    return this.terminalBufferService.getSnapshot(sessionId, true);
+  }
+
+  // Re-attach emitter listeners to an existing session without killing PTY
+  // Returns the session's emitter for streaming updates
+  reattachSession(sessionId: string): EventEmitter | null {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.logger.warn(`Cannot reattach: session ${sessionId} not found`);
+      return null;
+    }
+
+    this.logger.log(`Reattaching to session ${sessionId}, has PTY: ${!!session.ptyProcess}`);
+
+    // Return the existing emitter - the caller will add listeners
+    return session.emitter;
+  }
 }

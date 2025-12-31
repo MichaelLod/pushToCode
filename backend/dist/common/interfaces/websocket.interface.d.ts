@@ -23,7 +23,16 @@ export interface StopMessage {
     type: 'stop';
     sessionId: string;
 }
-export type ClientMessage = InitSessionMessage | ExecuteMessage | StopMessage;
+export interface ResumeSessionMessage {
+    type: 'resume_session';
+    sessionId: string;
+    projectPath: string;
+}
+export interface DestroySessionMessage {
+    type: 'destroy_session';
+    sessionId: string;
+}
+export type ClientMessage = InitSessionMessage | ExecuteMessage | StopMessage | ResumeSessionMessage | DestroySessionMessage;
 export interface SessionReadyMessage {
     type: 'session_ready';
     sessionId: string;
@@ -57,4 +66,18 @@ export interface TerminalBufferMessage {
     sessionId: string;
     buffer: TerminalBufferData;
 }
-export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage | TerminalBufferMessage;
+export interface SessionResumedMessage {
+    type: 'session_resumed';
+    sessionId: string;
+    buffer: TerminalBufferData;
+    isRunning: boolean;
+}
+export interface SessionNotFoundMessage {
+    type: 'session_not_found';
+    sessionId: string;
+}
+export interface SessionDestroyedMessage {
+    type: 'session_destroyed';
+    sessionId: string;
+}
+export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage | TerminalBufferMessage | SessionResumedMessage | SessionNotFoundMessage | SessionDestroyedMessage;

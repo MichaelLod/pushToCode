@@ -55,4 +55,8 @@ export declare class ClaudeService implements OnModuleInit {
     destroySession(sessionId: string): void;
     hasSession(sessionId: string): boolean;
     isRunning(sessionId: string): boolean;
+    hasActiveSession(sessionId: string): boolean;
+    isPtyRunning(sessionId: string): boolean;
+    getSessionBufferSnapshot(sessionId: string): import('./terminal-buffer.service').TerminalBufferSnapshot | null;
+    reattachSession(sessionId: string): EventEmitter | null;
 }
