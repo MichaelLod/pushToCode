@@ -263,14 +263,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
 
     // Handle terminal input
     const handleTerminalInput = useCallback((data: string) => {
-      if (!isConnected) return;
+      if (!isConnected || !isSessionReady) return;
 
       send({
         type: "pty_input",
         sessionId,
         data,
       });
-    }, [isConnected, sessionId, send]);
+    }, [isConnected, isSessionReady, sessionId, send]);
 
     // Helper to convert file to base64
     const fileToBase64 = useCallback((file: File): Promise<string> => {
