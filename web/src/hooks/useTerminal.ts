@@ -122,6 +122,17 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     container.addEventListener("touchstart", handleTouchStart, { passive: true });
     container.addEventListener("touchmove", handleTouchMove, { passive: false });
 
+    // Paste support - capture paste events on container and route through terminal
+    const handlePaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain");
+      if (text) {
+        // Route pasted text through the same path as keyboard input
+        onInputRef.current?.(text);
+        e.preventDefault();
+      }
+    };
+    container.addEventListener("paste", handlePaste);
+
     // Initial fit
     requestAnimationFrame(() => {
       try {
@@ -171,6 +182,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       window.removeEventListener("resize", handleResize);
       container.removeEventListener("touchstart", handleTouchStart);
       container.removeEventListener("touchmove", handleTouchMove);
+      container.removeEventListener("paste", handlePaste);
       terminal.dispose();
       terminalInstanceRef.current = null;
       fitAddonRef.current = null;
