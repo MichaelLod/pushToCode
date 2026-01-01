@@ -16,6 +16,8 @@ export interface InputBarProps {
   voiceMode?: boolean;
   onVoiceModeChange?: (enabled: boolean) => void;
   voiceQueueCount?: number;
+  // Called when recording starts (to stop TTS)
+  onRecordStart?: () => void;
 }
 
 /**
@@ -32,6 +34,7 @@ export function InputBar({
   voiceMode = false,
   onVoiceModeChange,
   voiceQueueCount = 0,
+  onRecordStart,
 }: InputBarProps) {
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -113,7 +116,10 @@ export function InputBar({
           {/* Mic button - prominent with queue badge */}
           <div className="relative">
             <button
-              onClick={() => setShowVoiceRecorder(true)}
+              onClick={() => {
+                onRecordStart?.();
+                setShowVoiceRecorder(true);
+              }}
               disabled={disabled}
               className="w-14 h-14 flex items-center justify-center rounded-full
                         bg-error text-white shadow-lg shadow-error/30

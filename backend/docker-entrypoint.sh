@@ -30,8 +30,12 @@ echo "CLAUDE_CODE_OAUTH_TOKEN present: $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && ec
 
 # Clone or update Claude settings (optional - don't fail if private repo)
 if [ -d "$CLAUDE_DIR/settings-repo" ]; then
-  echo "Updating Claude settings..."
-  cd "$CLAUDE_DIR/settings-repo" && git pull 2>&1 || echo "Could not update settings"
+  echo "Updating Claude settings (force pull)..."
+  cd "$CLAUDE_DIR/settings-repo"
+  # Force pull to ensure we always have latest, even if local changes exist
+  git fetch origin 2>&1 || echo "Could not fetch settings"
+  git reset --hard origin/main 2>&1 || echo "Could not reset to origin/main"
+  echo "Settings updated to: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
   cd /app
 else
   echo "Cloning Claude settings..."

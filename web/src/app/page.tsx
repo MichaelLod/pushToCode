@@ -298,6 +298,7 @@ export default function Home() {
             voiceMode={voiceMode}
             onVoiceModeChange={setVoiceMode}
             voiceQueueCount={voiceQueue.length}
+            onRecordStart={stopTTS}
           />
         </div>
       </main>
