@@ -404,15 +404,26 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       }
     }, [isActive]);
 
-    // Send transcription text
+    // Send transcription text, then Enter key separately
+    // This ensures the text is fully written before executing
     const sendTranscription = useCallback((text: string) => {
       if (!isConnected) return;
 
+      // First send the text
       send({
         type: "pty_input",
         sessionId,
-        data: text + "\r",
+        data: text,
       });
+
+      // Then send Enter as a separate command
+      setTimeout(() => {
+        send({
+          type: "pty_input",
+          sessionId,
+          data: "\r",
+        });
+      }, 50);
 
       terminalFocusRef.current?.();
     }, [isConnected, sessionId, send]);

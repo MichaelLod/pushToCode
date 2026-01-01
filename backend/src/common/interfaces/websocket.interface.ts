@@ -124,6 +124,12 @@ export interface VoiceOutputMessage {
   voiceData: VoiceOutputData;
 }
 
+export interface VoiceModeChangedMessage {
+  type: 'voice_mode_changed';
+  sessionId: string;
+  enabled: boolean;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
@@ -134,4 +140,5 @@ export type ServerMessage =
   | SessionResumedMessage
   | SessionNotFoundMessage
   | SessionDestroyedMessage
-  | VoiceOutputMessage;
+  | VoiceOutputMessage
+  | VoiceModeChangedMessage;
