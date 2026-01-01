@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { TranscribeResponseDto } from './dto/transcribe.dto';
+import { TranscribeResponseDto, TtsVoice } from './dto/transcribe.dto';
 export declare class TranscriptionService {
     private configService;
     private readonly logger;
@@ -11,4 +11,8 @@ export declare class TranscriptionService {
         prompt?: string;
     }): Promise<TranscribeResponseDto>;
     private getContentType;
+    textToSpeech(text: string, options?: {
+        voice?: TtsVoice;
+        speed?: number;
+    }): Promise<Buffer>;
 }

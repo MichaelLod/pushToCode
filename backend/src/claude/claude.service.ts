@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import { EventEmitter } from 'events';
-import { OutputType } from '../common/interfaces/websocket.interface';
+import { OutputType, VoiceOutputData, VoicePromptType } from '../common/interfaces/websocket.interface';
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,6 +27,7 @@ interface SessionData {
   lastSentLength: number;    // Track what we've already sent to iOS
   isProcessing?: boolean;    // Track if we're in a processing state
   lastProcessingTime?: number; // Debounce processing updates
+  voiceModeEnabled?: boolean; // Track if voice mode is enabled for this session
 }
 
 // Persisted session metadata for resuming conversations across server restarts
@@ -1166,5 +1167,55 @@ export class ClaudeService implements OnModuleInit {
 
     // Return the existing emitter - the caller will add listeners
     return session.emitter;
+  }
+
+  // Voice mode methods
+  setVoiceMode(sessionId: string, enabled: boolean): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.voiceModeEnabled = enabled;
+      this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
+    }
+  }
+
+  isVoiceModeEnabled(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    return session?.voiceModeEnabled || false;
+  }
+
+  // Parse voice markers from Claude output
+  // Format: <voice><speak>text</speak><prompt type="x">text</prompt><options>a,b,c</options></voice>
+  parseVoiceMarkers(content: string): VoiceOutputData | null {
+    // Strip ANSI codes first
+    const cleanContent = this.stripAnsiAndControl(content);
+
+    const voiceMatch = cleanContent.match(/<voice>([\s\S]*?)<\/voice>/);
+    if (!voiceMatch) return null;
+
+    const voiceContent = voiceMatch[1];
+    const speakMatch = voiceContent.match(/<speak>([\s\S]*?)<\/speak>/);
+    const promptMatch = voiceContent.match(/<prompt\s+type="([^"]+)">([\s\S]*?)<\/prompt>/);
+    const optionsMatch = voiceContent.match(/<options>([\s\S]*?)<\/options>/);
+
+    const speak = speakMatch?.[1]?.trim() || '';
+
+    // Only return if there's actual speech content
+    if (!speak) return null;
+
+    const result: VoiceOutputData = {
+      speak,
+    };
+
+    if (promptMatch) {
+      result.promptType = promptMatch[1] as VoicePromptType;
+      result.promptText = promptMatch[2]?.trim();
+    }
+
+    if (optionsMatch) {
+      result.options = optionsMatch[1].split(',').map(o => o.trim()).filter(o => o);
+    }
+
+    this.logger.log(`Parsed voice markers: speak="${speak.substring(0, 50)}...", promptType=${result.promptType}`);
+    return result;
   }
 }

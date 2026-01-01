@@ -10,7 +10,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClaudeService, ClaudeOutput } from './claude.service';
 import { IncomingMessage } from 'http';
-import { ServerMessage, TerminalBufferData } from '../common/interfaces/websocket.interface';
+import { ServerMessage, TerminalBufferData, VoiceOutputData } from '../common/interfaces/websocket.interface';
 import { TerminalBufferSnapshot } from './terminal-buffer.service';
 
 // Extended WebSocket type with custom properties
@@ -176,6 +176,9 @@ export class ClaudeGateway
           break;
         case 'pong':
           client.isAlive = true;
+          break;
+        case 'voice_mode':
+          this.handleVoiceMode(client, data);
           break;
         default:
           this.logger.warn(`Unknown message type: ${type}`);
@@ -473,6 +476,18 @@ export class ClaudeGateway
           sessionId,
           buffer: snapshot as TerminalBufferData,
         });
+
+        // Check for voice markers in the buffer content if voice mode is enabled
+        if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+          const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+          if (voiceData) {
+            this.sendMessage(client, {
+              type: 'voice_output',
+              sessionId,
+              voiceData,
+            });
+          }
+        }
       });
 
       // Legacy: Stream raw PTY output to client (for backwards compatibility)
@@ -559,6 +574,18 @@ export class ClaudeGateway
             sessionId,
             buffer: snapshot as TerminalBufferData,
           });
+
+          // Check for voice markers in the buffer content if voice mode is enabled
+          if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+            const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+            if (voiceData) {
+              this.sendMessage(client, {
+                type: 'voice_output',
+                sessionId,
+                voiceData,
+              });
+            }
+          }
         });
 
         // Legacy: Stream raw PTY output
@@ -713,6 +740,22 @@ export class ClaudeGateway
   private handlePing(client: AuthenticatedWebSocket): void {
     client.isAlive = true;
     this.sendMessage(client, { type: 'pong', timestamp: Date.now() });
+  }
+
+  private handleVoiceMode(
+    client: AuthenticatedWebSocket,
+    data: { sessionId: string; enabled: boolean },
+  ): void {
+    const { sessionId, enabled } = data;
+    this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
+
+    this.claudeService.setVoiceMode(sessionId, enabled);
+
+    this.sendMessage(client, {
+      type: 'voice_mode_changed',
+      sessionId,
+      enabled,
+    });
   }
 
   private sendMessage(client: AuthenticatedWebSocket, message: any): void {

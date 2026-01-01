@@ -1,7 +1,7 @@
 import { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
-import { OutputType } from '../common/interfaces/websocket.interface';
+import { OutputType, VoiceOutputData } from '../common/interfaces/websocket.interface';
 import { TerminalBufferService } from './terminal-buffer.service';
 export interface ClaudeOutput {
     type: 'output' | 'error' | 'exit' | 'auth_required';
@@ -59,4 +59,7 @@ export declare class ClaudeService implements OnModuleInit {
     isPtyRunning(sessionId: string): boolean;
     getSessionBufferSnapshot(sessionId: string): import('./terminal-buffer.service').TerminalBufferSnapshot | null;
     reattachSession(sessionId: string): EventEmitter | null;
+    setVoiceMode(sessionId: string, enabled: boolean): void;
+    isVoiceModeEnabled(sessionId: string): boolean;
+    parseVoiceMarkers(content: string): VoiceOutputData | null;
 }

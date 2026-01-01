@@ -9,9 +9,11 @@ import { FileAttachment } from "@/components/FileUpload";
 import { Settings } from "@/components/Settings";
 import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
+import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { InstallBanner } from "@/components/InstallBanner";
 import { NewSessionModal } from "@/components/NewSessionModal";
 import { ConnectionStatus as ConnectionStatusType } from "@/hooks/useWebSocket";
+import { VoiceOutputData } from "@/types/messages";
 
 export default function Home() {
   const settings = useSettings();
@@ -19,8 +21,18 @@ export default function Home() {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [modalDismissed, setModalDismissed] = useState(false);
 
+  // Voice mode state
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceQueue, setVoiceQueue] = useState<string[]>([]);
+
   // Track connection status per session for display
   const [connectionStatuses, setConnectionStatuses] = useState<Record<string, ConnectionStatusType>>({});
+
+  // TTS playback via voice recorder hook
+  const { playTTS, stopTTS, isTTSPlaying } = useVoiceRecorder({
+    serverUrl: settings.serverUrl,
+    apiKey: settings.apiKey,
+  });
 
   // Refs to all terminal panes
   const terminalPaneRefs = useRef<Record<string, TerminalPaneHandle | null>>({});
@@ -82,12 +94,41 @@ export default function Home() {
     }
   }, [sessions.length, settings.isLoaded, settings.serverUrl, settings.apiKey, showNewSessionModal, modalDismissed]);
 
+  // Handle voice output from terminal - play TTS
+  const handleVoiceOutput = useCallback((voiceData: VoiceOutputData) => {
+    if (voiceData.speak && voiceMode) {
+      playTTS(voiceData.speak);
+    }
+  }, [voiceMode, playTTS]);
+
   // Handle voice transcription - route to current terminal
+  // Queue if CLI is busy, prepend @voice if voice mode is enabled
   const handleTranscription = useCallback((text: string) => {
     if (!currentSession) return;
+
+    // If CLI is busy (not idle), queue the command
+    if (currentStatus !== "connected") {
+      setVoiceQueue(prev => [...prev, text]);
+      return;
+    }
+
     const pane = terminalPaneRefs.current[currentSession.id];
-    pane?.sendTranscription(text);
-  }, [currentSession]);
+    // Prepend @voice marker when voice mode is enabled
+    const messageToSend = voiceMode ? `@voice ${text}` : text;
+    pane?.sendTranscription(messageToSend);
+  }, [currentSession, currentStatus, voiceMode]);
+
+  // Process voice queue when status becomes connected
+  useEffect(() => {
+    if (currentStatus === "connected" && voiceQueue.length > 0 && currentSession) {
+      const [nextCommand, ...rest] = voiceQueue;
+      setVoiceQueue(rest);
+
+      const pane = terminalPaneRefs.current[currentSession.id];
+      const messageToSend = voiceMode ? `@voice ${nextCommand}` : nextCommand;
+      pane?.sendTranscription(messageToSend);
+    }
+  }, [currentStatus, voiceQueue, currentSession, voiceMode]);
 
   // Handle file uploads - route to current terminal
   const handleFileUpload = useCallback(async (attachments: FileAttachment[]) => {
@@ -234,6 +275,8 @@ export default function Home() {
                     onStatusChange={handleStatusChange(session.id)}
                     fontSize={settings.fontSize}
                     fontFamily={settings.fontFamily}
+                    voiceMode={voiceMode}
+                    onVoiceOutput={handleVoiceOutput}
                   />
                 </div>
               ))}
@@ -252,6 +295,9 @@ export default function Home() {
             disabled={!isCurrentConnected || !currentSession}
             serverUrl={settings.serverUrl}
             apiKey={settings.apiKey}
+            voiceMode={voiceMode}
+            onVoiceModeChange={setVoiceMode}
+            voiceQueueCount={voiceQueue.length}
           />
         </div>
       </main>

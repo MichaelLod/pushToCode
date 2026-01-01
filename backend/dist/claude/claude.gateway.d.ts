@@ -33,6 +33,7 @@ export declare class ClaudeGateway implements OnGatewayInit, OnGatewayConnection
     private handleUploadFile;
     private getExtFromMime;
     private handlePing;
+    private handleVoiceMode;
     private sendMessage;
     private sendError;
     private generateClientId;

@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TranscribeResponseDto = exports.TranscribeDto = void 0;
+exports.TextToSpeechDto = exports.TranscribeResponseDto = exports.TranscribeDto = void 0;
 const class_validator_1 = require("class-validator");
 class TranscribeDto {
     language;
@@ -32,4 +32,27 @@ class TranscribeResponseDto {
     language;
 }
 exports.TranscribeResponseDto = TranscribeResponseDto;
+class TextToSpeechDto {
+    text;
+    voice;
+    speed;
+}
+exports.TextToSpeechDto = TextToSpeechDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], TextToSpeechDto.prototype, "text", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+    __metadata("design:type", String)
+], TextToSpeechDto.prototype, "voice", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.25),
+    (0, class_validator_1.Max)(4.0),
+    __metadata("design:type", Number)
+], TextToSpeechDto.prototype, "speed", void 0);
 //# sourceMappingURL=transcribe.dto.js.map

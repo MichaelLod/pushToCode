@@ -18,7 +18,8 @@ export type ClientMessageType =
   | "start_interactive"
   | "submit_auth_code"
   | "resume_session"
-  | "destroy_session";
+  | "destroy_session"
+  | "voice_mode";
 
 export interface InitSessionMessage {
   type: "init_session";
@@ -88,6 +89,12 @@ export interface DestroySessionMessage {
   sessionId: string;
 }
 
+export interface VoiceModeMessage {
+  type: "voice_mode";
+  sessionId: string;
+  enabled: boolean;
+}
+
 export type ClientMessage =
   | InitSessionMessage
   | ExecuteMessage
@@ -100,7 +107,8 @@ export type ClientMessage =
   | SubmitAuthCodeMessage
   | UploadFileMessage
   | ResumeSessionMessage
-  | DestroySessionMessage;
+  | DestroySessionMessage
+  | VoiceModeMessage;
 
 // ============================================
 // Server -> Client Messages
@@ -123,7 +131,9 @@ export type ServerMessageType =
   | "file_uploaded"
   | "session_resumed"
   | "session_not_found"
-  | "session_destroyed";
+  | "session_destroyed"
+  | "voice_output"
+  | "voice_mode_changed";
 
 // Terminal buffer data from server-side rendering
 export interface TerminalBufferData {
@@ -234,6 +244,28 @@ export interface SessionDestroyedMessage {
   sessionId: string;
 }
 
+// Voice mode types
+export type VoicePromptType = "confirm" | "choice" | "input";
+
+export interface VoiceOutputData {
+  speak: string;
+  promptType?: VoicePromptType;
+  promptText?: string;
+  options?: string[];
+}
+
+export interface VoiceOutputMessage {
+  type: "voice_output";
+  sessionId: string;
+  voiceData: VoiceOutputData;
+}
+
+export interface VoiceModeChangedMessage {
+  type: "voice_mode_changed";
+  sessionId: string;
+  enabled: boolean;
+}
+
 export type ServerMessage =
   | SessionReadyMessage
   | StatusMessage
@@ -251,7 +283,9 @@ export type ServerMessage =
   | FileUploadedMessage
   | SessionResumedMessage
   | SessionNotFoundMessage
-  | SessionDestroyedMessage;
+  | SessionDestroyedMessage
+  | VoiceOutputMessage
+  | VoiceModeChangedMessage;
 
 // ============================================
 // Type Guards
@@ -296,4 +330,12 @@ export function isAuthFailedMessage(msg: ServerMessage): msg is AuthFailedMessag
 
 export function isTerminalBufferMessage(msg: ServerMessage): msg is TerminalBufferMessage {
   return msg.type === "terminal_buffer";
+}
+
+export function isVoiceOutputMessage(msg: ServerMessage): msg is VoiceOutputMessage {
+  return msg.type === "voice_output";
+}
+
+export function isVoiceModeChangedMessage(msg: ServerMessage): msg is VoiceModeChangedMessage {
+  return msg.type === "voice_mode_changed";
 }

@@ -38,6 +38,19 @@ let TranscriptionController = TranscriptionController_1 = class TranscriptionCon
         this.logger.log(`Transcription complete: "${result.text.substring(0, 50)}..."`);
         return result;
     }
+    async textToSpeech(dto, res) {
+        if (!dto.text || dto.text.trim().length === 0) {
+            throw new common_1.BadRequestException('Text is required for TTS');
+        }
+        this.logger.log(`TTS request: text="${dto.text.substring(0, 50)}...", voice=${dto.voice || 'alloy'}`);
+        const audioBuffer = await this.transcriptionService.textToSpeech(dto.text, { voice: dto.voice, speed: dto.speed });
+        res.set({
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.length,
+            'Cache-Control': 'no-cache',
+        });
+        res.send(audioBuffer);
+    }
 };
 exports.TranscriptionController = TranscriptionController;
 __decorate([
@@ -70,6 +83,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, transcribe_dto_1.TranscribeDto]),
     __metadata("design:returntype", Promise)
 ], TranscriptionController.prototype, "transcribe", null);
+__decorate([
+    (0, common_1.Post)('tts'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [transcribe_dto_1.TextToSpeechDto, Object]),
+    __metadata("design:returntype", Promise)
+], TranscriptionController.prototype, "textToSpeech", null);
 exports.TranscriptionController = TranscriptionController = TranscriptionController_1 = __decorate([
     (0, common_1.Controller)('transcribe'),
     (0, common_1.UseGuards)(api_key_guard_1.ApiKeyGuard),

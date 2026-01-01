@@ -7,3 +7,9 @@ export declare class TranscribeResponseDto {
     duration?: number;
     language?: string;
 }
+export type TtsVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+export declare class TextToSpeechDto {
+    text: string;
+    voice?: TtsVoice;
+    speed?: number;
+}

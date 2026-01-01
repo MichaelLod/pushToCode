@@ -22,6 +22,10 @@ export interface UseVoiceRecorderResult {
   stopRecording: () => Promise<TranscribeResponse | null>;
   cancelRecording: () => void;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  // TTS playback
+  playTTS: (text: string) => Promise<void>;
+  stopTTS: () => void;
+  isTTSPlaying: boolean;
 }
 
 /**
@@ -336,11 +340,119 @@ export function useVoiceRecorder(options?: VoiceRecorderOptions): UseVoiceRecord
     });
   }, [cleanup]);
 
+  // TTS playback state and refs
+  const [isTTSPlaying, setIsTTSPlaying] = useState(false);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsQueueRef = useRef<string[]>([]);
+  const isProcessingTTSRef = useRef(false);
+
+  // Process TTS queue
+  const processTTSQueue = useCallback(async () => {
+    if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingTTSRef.current = true;
+    const text = ttsQueueRef.current.shift();
+
+    if (!text) {
+      isProcessingTTSRef.current = false;
+      return;
+    }
+
+    try {
+      setIsTTSPlaying(true);
+
+      // Build base URL
+      let baseUrl = options?.serverUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      if (baseUrl.startsWith("ws://")) {
+        baseUrl = baseUrl.replace("ws://", "http://");
+      } else if (baseUrl.startsWith("wss://")) {
+        baseUrl = baseUrl.replace("wss://", "https://");
+      }
+
+      // Call TTS API
+      const response = await fetch(`${baseUrl}/api/transcribe/tts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": options?.apiKey || "",
+        },
+        body: JSON.stringify({ text, voice: "alloy" }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS request failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Play the audio
+      const audio = new Audio(audioUrl);
+      ttsAudioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        ttsAudioRef.current = null;
+        isProcessingTTSRef.current = false;
+
+        // Process next in queue
+        if (ttsQueueRef.current.length > 0) {
+          processTTSQueue();
+        } else {
+          setIsTTSPlaying(false);
+        }
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        ttsAudioRef.current = null;
+        isProcessingTTSRef.current = false;
+        setIsTTSPlaying(false);
+        console.error("[TTS] Audio playback error");
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error("[TTS] Error:", err);
+      isProcessingTTSRef.current = false;
+      setIsTTSPlaying(false);
+      // Try next in queue
+      if (ttsQueueRef.current.length > 0) {
+        processTTSQueue();
+      }
+    }
+  }, [options?.serverUrl, options?.apiKey]);
+
+  // Play TTS - adds to queue and starts processing
+  const playTTS = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+
+    console.log("[TTS] Queuing:", text.substring(0, 50) + "...");
+    ttsQueueRef.current.push(text);
+    processTTSQueue();
+  }, [processTTSQueue]);
+
+  // Stop TTS playback
+  const stopTTS = useCallback(() => {
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
+    ttsQueueRef.current = [];
+    isProcessingTTSRef.current = false;
+    setIsTTSPlaying(false);
+  }, []);
+
   return {
     state,
     startRecording,
     stopRecording,
     cancelRecording,
     canvasRef,
+    playTTS,
+    stopTTS,
+    isTTSPlaying,
   };
 }

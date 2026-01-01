@@ -133,6 +133,9 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                 case 'pong':
                     client.isAlive = true;
                     break;
+                case 'voice_mode':
+                    this.handleVoiceMode(client, data);
+                    break;
                 default:
                     this.logger.warn(`Unknown message type: ${type}`);
             }
@@ -362,6 +365,16 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                     sessionId,
                     buffer: snapshot,
                 });
+                if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+                    const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+                    if (voiceData) {
+                        this.sendMessage(client, {
+                            type: 'voice_output',
+                            sessionId,
+                            voiceData,
+                        });
+                    }
+                }
             });
             emitter.on('pty_output', (output) => {
                 if (output) {
@@ -429,6 +442,16 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
                         sessionId,
                         buffer: snapshot,
                     });
+                    if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+                        const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+                        if (voiceData) {
+                            this.sendMessage(client, {
+                                type: 'voice_output',
+                                sessionId,
+                                voiceData,
+                            });
+                        }
+                    }
                 });
                 emitter.on('pty_output', (output) => {
                     if (output) {
@@ -539,6 +562,16 @@ let ClaudeGateway = ClaudeGateway_1 = class ClaudeGateway {
     handlePing(client) {
         client.isAlive = true;
         this.sendMessage(client, { type: 'pong', timestamp: Date.now() });
+    }
+    handleVoiceMode(client, data) {
+        const { sessionId, enabled } = data;
+        this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
+        this.claudeService.setVoiceMode(sessionId, enabled);
+        this.sendMessage(client, {
+            type: 'voice_mode_changed',
+            sessionId,
+            enabled,
+        });
     }
     sendMessage(client, message) {
         try {

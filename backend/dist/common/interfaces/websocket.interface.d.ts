@@ -80,4 +80,21 @@ export interface SessionDestroyedMessage {
     type: 'session_destroyed';
     sessionId: string;
 }
-export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage | TerminalBufferMessage | SessionResumedMessage | SessionNotFoundMessage | SessionDestroyedMessage;
+export type VoicePromptType = 'confirm' | 'choice' | 'input';
+export interface VoiceOutputData {
+    speak: string;
+    promptType?: VoicePromptType;
+    promptText?: string;
+    options?: string[];
+}
+export interface VoiceModeMessage {
+    type: 'voice_mode';
+    sessionId: string;
+    enabled: boolean;
+}
+export interface VoiceOutputMessage {
+    type: 'voice_output';
+    sessionId: string;
+    voiceData: VoiceOutputData;
+}
+export type ServerMessage = SessionReadyMessage | StatusMessage | OutputMessage | ErrorMessage | AuthRequiredMessage | TerminalBufferMessage | SessionResumedMessage | SessionNotFoundMessage | SessionDestroyedMessage | VoiceOutputMessage;

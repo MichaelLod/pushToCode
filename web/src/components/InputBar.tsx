@@ -12,6 +12,10 @@ export interface InputBarProps {
   disabled?: boolean;
   serverUrl?: string;
   apiKey?: string;
+  // Voice mode
+  voiceMode?: boolean;
+  onVoiceModeChange?: (enabled: boolean) => void;
+  voiceQueueCount?: number;
 }
 
 /**
@@ -25,6 +29,9 @@ export function InputBar({
   disabled = false,
   serverUrl,
   apiKey,
+  voiceMode = false,
+  onVoiceModeChange,
+  voiceQueueCount = 0,
 }: InputBarProps) {
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -84,25 +91,52 @@ export function InputBar({
             </svg>
           </button>
 
-          {/* Mic button - prominent */}
+          {/* Voice mode toggle button */}
           <button
-            onClick={() => setShowVoiceRecorder(true)}
+            onClick={() => onVoiceModeChange?.(!voiceMode)}
             disabled={disabled}
-            className="w-14 h-14 flex items-center justify-center rounded-full
-                      bg-error text-white shadow-lg shadow-error/30
-                      hover:bg-error/90 hover:scale-105 active:scale-95
-                      transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Start voice recording"
+            className={`w-11 h-11 flex items-center justify-center rounded-xl
+                       transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                       ${voiceMode
+                         ? "bg-info text-bg-primary"
+                         : "bg-bg-secondary text-text-secondary hover:text-text-primary hover:bg-border"
+                       }`}
+            aria-label={voiceMode ? "Disable voice mode" : "Enable voice mode"}
+            aria-pressed={voiceMode}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
             </svg>
           </button>
+
+          {/* Mic button - prominent with queue badge */}
+          <div className="relative">
+            <button
+              onClick={() => setShowVoiceRecorder(true)}
+              disabled={disabled}
+              className="w-14 h-14 flex items-center justify-center rounded-full
+                        bg-error text-white shadow-lg shadow-error/30
+                        hover:bg-error/90 hover:scale-105 active:scale-95
+                        transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Start voice recording"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+            </button>
+            {/* Queue badge */}
+            {voiceQueueCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-warning text-bg-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {voiceQueueCount}
+              </span>
+            )}
+          </div>
 
           {/* Attach button */}
           <FileUpload

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import FormData from 'form-data';
-import { TranscribeResponseDto } from './dto/transcribe.dto';
+import { TranscribeResponseDto, TtsVoice } from './dto/transcribe.dto';
 
 @Injectable()
 export class TranscriptionService {
@@ -84,5 +84,48 @@ export class TranscriptionService {
       webm: 'audio/webm',
     };
     return mimeTypes[ext || ''] || 'audio/m4a';
+  }
+
+  async textToSpeech(
+    text: string,
+    options?: { voice?: TtsVoice; speed?: number },
+  ): Promise<Buffer> {
+    if (!this.openaiApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    const voice = options?.voice || 'alloy';
+    const speed = Math.min(4.0, Math.max(0.25, options?.speed || 1.0));
+
+    try {
+      this.logger.log(`TTS request: voice=${voice}, speed=${speed}, text="${text.substring(0, 50)}..."`);
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/audio/speech',
+        {
+          model: 'tts-1',
+          input: text,
+          voice,
+          speed,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'arraybuffer',
+        },
+      );
+
+      this.logger.log(`TTS complete: ${response.data.byteLength} bytes`);
+      return Buffer.from(response.data);
+    } catch (error) {
+      this.logger.error(
+        `TTS error: ${error.response?.data?.error?.message || error.message}`,
+      );
+      throw new Error(
+        `TTS failed: ${error.response?.data?.error?.message || error.message}`,
+      );
+    }
   }
 }

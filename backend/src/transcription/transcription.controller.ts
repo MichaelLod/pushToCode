@@ -7,11 +7,13 @@ import {
   Body,
   BadRequestException,
   Logger,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { TranscriptionService } from './transcription.service';
-import { TranscribeDto, TranscribeResponseDto } from './dto/transcribe.dto';
+import { TranscribeDto, TranscribeResponseDto, TextToSpeechDto } from './dto/transcribe.dto';
 
 @Controller('transcribe')
 @UseGuards(ApiKeyGuard)
@@ -73,5 +75,29 @@ export class TranscriptionController {
 
     this.logger.log(`Transcription complete: "${result.text.substring(0, 50)}..."`);
     return result;
+  }
+
+  @Post('tts')
+  async textToSpeech(
+    @Body() dto: TextToSpeechDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (!dto.text || dto.text.trim().length === 0) {
+      throw new BadRequestException('Text is required for TTS');
+    }
+
+    this.logger.log(`TTS request: text="${dto.text.substring(0, 50)}...", voice=${dto.voice || 'alloy'}`);
+
+    const audioBuffer = await this.transcriptionService.textToSpeech(
+      dto.text,
+      { voice: dto.voice, speed: dto.speed },
+    );
+
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBuffer.length,
+      'Cache-Control': 'no-cache',
+    });
+    res.send(audioBuffer);
   }
 }

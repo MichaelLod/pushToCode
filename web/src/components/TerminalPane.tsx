@@ -9,7 +9,7 @@ import { useEffect, useCallback, useRef, useState, forwardRef, useImperativeHand
 import { Terminal } from "@/components/Terminal";
 import { useWebSocket, ConnectionStatus } from "@/hooks/useWebSocket";
 import { useTerminal } from "@/hooks/useTerminal";
-import { ServerMessage, TerminalBufferMessage, SessionResumedMessage } from "@/types/messages";
+import { ServerMessage, TerminalBufferMessage, SessionResumedMessage, VoiceOutputMessage, VoiceOutputData } from "@/types/messages";
 import { FileAttachment } from "@/components/FileUpload";
 import {
   appendTerminalOutput,
@@ -26,6 +26,9 @@ export interface TerminalPaneProps {
   onStatusChange?: (status: ConnectionStatus) => void;
   fontSize?: number;
   fontFamily?: string;
+  // Voice mode
+  voiceMode?: boolean;
+  onVoiceOutput?: (voiceData: VoiceOutputData) => void;
 }
 
 export interface TerminalPaneHandle {
@@ -36,6 +39,7 @@ export interface TerminalPaneHandle {
   getStatus: () => ConnectionStatus;
   isConnected: () => boolean;
   destroySession: () => void;  // Notify backend to destroy session (for X button)
+  setVoiceMode: (enabled: boolean) => void;
 }
 
 export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
@@ -49,11 +53,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       onStatusChange,
       fontSize = 14,
       fontFamily = "monospace",
+      voiceMode = false,
+      onVoiceOutput,
     },
     ref
   ) {
     // Track initialization state
     const [isSessionReady, setIsSessionReady] = useState(false);
+    const voiceModeRef = useRef(voiceMode);
     const hasRestoredOutputRef = useRef(false);
     const useBufferModeRef = useRef(false);
     const lastBufferContentRef = useRef<string>("");
@@ -176,6 +183,19 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
           }
           break;
 
+        case "voice_output":
+          // Handle voice output from Claude
+          const voiceData = (message as VoiceOutputMessage).voiceData;
+          if (voiceData && voiceModeRef.current) {
+            console.log(`[${sessionId}] Voice output:`, voiceData.speak?.substring(0, 50) + "...");
+            onVoiceOutput?.(voiceData);
+          }
+          break;
+
+        case "voice_mode_changed":
+          console.log(`[${sessionId}] Voice mode changed:`, message);
+          break;
+
         case "auth_required":
         case "auth_success":
         case "auth_failed":
@@ -185,7 +205,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
           // Handled by WebSocket client or ignored
           break;
       }
-    }, [sessionId]);
+    }, [sessionId, onVoiceOutput]);
 
     // WebSocket connection for this terminal
     const { status, isConnected, send, checkConnection } = useWebSocket({
@@ -227,6 +247,18 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
         projectPath: repoPath || "/repos",
       });
     }, [isConnected, isSessionReady, sessionId, repoPath, send]);
+
+    // Sync voice mode with backend when prop changes
+    useEffect(() => {
+      voiceModeRef.current = voiceMode;
+      if (isConnected && isSessionReady) {
+        send({
+          type: "voice_mode",
+          sessionId,
+          enabled: voiceMode,
+        });
+      }
+    }, [voiceMode, isConnected, isSessionReady, sessionId, send]);
 
     // Handle visibility change (PWA resume from background)
     useEffect(() => {
@@ -394,6 +426,16 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       });
     }, [sessionId, send]);
 
+    // Set voice mode on backend
+    const setVoiceMode = useCallback((enabled: boolean) => {
+      voiceModeRef.current = enabled;
+      send({
+        type: "voice_mode",
+        sessionId,
+        enabled,
+      });
+    }, [sessionId, send]);
+
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({
       focus: () => terminalFocusRef.current?.(),
@@ -403,7 +445,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       getStatus: () => status,
       isConnected: () => isConnected,
       destroySession,
-    }), [handleTerminalInput, sendTranscription, handleFileUpload, status, isConnected, destroySession]);
+      setVoiceMode,
+    }), [handleTerminalInput, sendTranscription, handleFileUpload, status, isConnected, destroySession, setVoiceMode]);
 
     // Show loading state while connecting or initializing
     const isLoading = !isConnected || !isSessionReady;

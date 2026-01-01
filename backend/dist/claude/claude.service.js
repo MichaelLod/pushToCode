@@ -919,6 +919,42 @@ let ClaudeService = ClaudeService_1 = class ClaudeService {
         this.logger.log(`Reattaching to session ${sessionId}, has PTY: ${!!session.ptyProcess}`);
         return session.emitter;
     }
+    setVoiceMode(sessionId, enabled) {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+            session.voiceModeEnabled = enabled;
+            this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
+        }
+    }
+    isVoiceModeEnabled(sessionId) {
+        const session = this.sessions.get(sessionId);
+        return session?.voiceModeEnabled || false;
+    }
+    parseVoiceMarkers(content) {
+        const cleanContent = this.stripAnsiAndControl(content);
+        const voiceMatch = cleanContent.match(/<voice>([\s\S]*?)<\/voice>/);
+        if (!voiceMatch)
+            return null;
+        const voiceContent = voiceMatch[1];
+        const speakMatch = voiceContent.match(/<speak>([\s\S]*?)<\/speak>/);
+        const promptMatch = voiceContent.match(/<prompt\s+type="([^"]+)">([\s\S]*?)<\/prompt>/);
+        const optionsMatch = voiceContent.match(/<options>([\s\S]*?)<\/options>/);
+        const speak = speakMatch?.[1]?.trim() || '';
+        if (!speak)
+            return null;
+        const result = {
+            speak,
+        };
+        if (promptMatch) {
+            result.promptType = promptMatch[1];
+            result.promptText = promptMatch[2]?.trim();
+        }
+        if (optionsMatch) {
+            result.options = optionsMatch[1].split(',').map(o => o.trim()).filter(o => o);
+        }
+        this.logger.log(`Parsed voice markers: speak="${speak.substring(0, 50)}...", promptType=${result.promptType}`);
+        return result;
+    }
 };
 exports.ClaudeService = ClaudeService;
 exports.ClaudeService = ClaudeService = ClaudeService_1 = __decorate([
