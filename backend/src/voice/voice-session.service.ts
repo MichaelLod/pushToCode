@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import * as pty from 'node-pty';
 import * as path from 'path';
 import { VoiceOption } from './voice.interface';
+import { VoiceOutputData, VoicePromptType } from '../common/interfaces/websocket.interface';
 
 export interface VoiceClaudeOutput {
   type: 'response' | 'error' | 'exit';
@@ -18,6 +19,7 @@ interface VoiceSession {
   projectPath: string;
   buffer: string;
   isProcessing: boolean;
+  voiceModeEnabled: boolean;
   createdAt: Date;
   lastActivityAt: Date;
 }
@@ -95,6 +97,7 @@ export class VoiceSessionService {
       projectPath,
       buffer: '',
       isProcessing: false,
+      voiceModeEnabled: false,
       createdAt: new Date(),
       lastActivityAt: new Date(),
     };
@@ -283,6 +286,82 @@ export class VoiceSessionService {
    */
   isProcessing(sessionId: string): boolean {
     return this.sessions.get(sessionId)?.isProcessing ?? false;
+  }
+
+  /**
+   * Set voice mode enabled/disabled for a session
+   */
+  setVoiceMode(sessionId: string, enabled: boolean): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      this.logger.warn(`Cannot set voice mode: session ${sessionId} not found`);
+      return false;
+    }
+    session.voiceModeEnabled = enabled;
+    this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
+    return true;
+  }
+
+  /**
+   * Check if voice mode is enabled for a session
+   */
+  isVoiceModeEnabled(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    return session?.voiceModeEnabled || false;
+  }
+
+  /**
+   * Parse voice markers from Claude output
+   * Format: <voice><speak>text</speak><prompt type="x">text</prompt><options>a,b,c</options></voice>
+   */
+  parseVoiceMarkers(content: string): VoiceOutputData | null {
+    // Strip ANSI codes first
+    const cleanContent = this.stripAnsiAndControl(content);
+
+    const voiceMatch = cleanContent.match(/<voice>([\s\S]*?)<\/voice>/);
+    if (!voiceMatch) return null;
+
+    const voiceContent = voiceMatch[1];
+    const speakMatch = voiceContent.match(/<speak>([\s\S]*?)<\/speak>/);
+    const promptMatch = voiceContent.match(/<prompt\s+type="([^"]+)">([\s\S]*?)<\/prompt>/);
+    const optionsMatch = voiceContent.match(/<options>([\s\S]*?)<\/options>/);
+
+    const speak = speakMatch?.[1]?.trim() || '';
+
+    // Only return if there's actual speech content
+    if (!speak) return null;
+
+    const result: VoiceOutputData = {
+      speak,
+    };
+
+    if (promptMatch) {
+      result.promptType = promptMatch[1] as VoicePromptType;
+      result.promptText = promptMatch[2]?.trim();
+    }
+
+    if (optionsMatch) {
+      result.options = optionsMatch[1].split(',').map(o => o.trim()).filter(o => o);
+    }
+
+    this.logger.log(`Parsed voice markers: speak="${speak.substring(0, 50)}...", promptType=${result.promptType}`);
+    return result;
+  }
+
+  /**
+   * Strip ANSI escape codes and control characters from text
+   */
+  private stripAnsiAndControl(data: string): string {
+    return data
+      // Strip ANSI escape sequences (colors, cursor movement, etc.)
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')    // CSI sequences
+      .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '')  // Private CSI sequences
+      .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC sequences
+      .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '') // DCS, SOS, PM, APC sequences
+      .replace(/\x1b[\(\)][AB012]/g, '')        // Character set selection
+      .replace(/\x1b[=>]/g, '')                 // Keypad mode
+      // Remove control characters except newline/tab/carriage return
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   }
 
   /**
