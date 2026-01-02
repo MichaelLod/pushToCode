@@ -305,6 +305,7 @@ export default function Home() {
             serverUrl={settings.serverUrl}
             apiKey={settings.apiKey}
             sessionId={currentSession?.id ?? "voice-session"}
+            repoPath={currentSession?.repoPath}
           />
         ) : (
           /* Terminal Mode */

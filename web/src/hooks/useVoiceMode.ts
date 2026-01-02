@@ -22,6 +22,7 @@ export interface UseVoiceModeOptions {
   serverUrl: string;
   apiKey?: string;
   sessionId: string;
+  repoPath?: string;
   onAudioChunk?: (audioData: string, isFinal: boolean) => void;
 }
 
@@ -48,7 +49,7 @@ export interface UseVoiceModeReturn {
 }
 
 export function useVoiceMode(options: UseVoiceModeOptions): UseVoiceModeReturn {
-  const { serverUrl, apiKey, sessionId, onAudioChunk } = options;
+  const { serverUrl, apiKey, sessionId, repoPath, onAudioChunk } = options;
 
   // Session state
   const [sessionState, setSessionState] = useState<VoiceSessionState>("idle");
@@ -98,6 +99,7 @@ export function useVoiceMode(options: UseVoiceModeOptions): UseVoiceModeReturn {
     url: serverUrl,
     apiKey,
     sessionId,
+    repoPath,
     autoConnect: true,
     onMessage: handleMessage,
     onError: handleError,

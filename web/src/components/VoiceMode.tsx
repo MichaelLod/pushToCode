@@ -15,9 +15,10 @@ export interface VoiceModeProps {
   serverUrl: string;
   apiKey?: string;
   sessionId: string;
+  repoPath?: string;
 }
 
-export function VoiceMode({ serverUrl, apiKey, sessionId }: VoiceModeProps) {
+export function VoiceMode({ serverUrl, apiKey, sessionId, repoPath }: VoiceModeProps) {
   // Audio player for TTS
   const audioPlayer = useAudioPlayer({
     onPlaybackEnd: () => {
@@ -44,6 +45,7 @@ export function VoiceMode({ serverUrl, apiKey, sessionId }: VoiceModeProps) {
     serverUrl,
     apiKey,
     sessionId,
+    repoPath,
     onAudioChunk: (audio, isFinal) => {
       audioPlayer.queueAudio(audio, isFinal);
     },

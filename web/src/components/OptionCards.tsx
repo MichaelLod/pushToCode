@@ -38,11 +38,6 @@ export function OptionCards({ options, onSelect, disabled = false }: OptionCards
             aria-label={`Select option: ${option.label}`}
           >
             <span className="block text-base leading-snug">{option.label}</span>
-            {option.action && option.action !== option.label && (
-              <span className="block text-sm text-text-secondary mt-1">
-                {option.action}
-              </span>
-            )}
           </button>
         ))}
       </div>

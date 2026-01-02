@@ -162,9 +162,9 @@ export class VoiceGateway
 
   private async handleVoiceText(
     client: AuthenticatedVoiceSocket,
-    data: { text: string; sessionId: string },
+    data: { text: string; sessionId: string; repoPath?: string },
   ): Promise<void> {
-    const { text, sessionId } = data;
+    const { text, sessionId, repoPath } = data;
     this.logger.log(`Voice text from ${client.clientId}: "${text.substring(0, 50)}..."`);
 
     try {
@@ -175,10 +175,11 @@ export class VoiceGateway
         status: 'processing',
       });
 
-      // Get or create voice session
+      // Get or create voice session with actual repo path
+      const projectPath = repoPath || '/tmp';
       const emitter = await this.voiceSessionService.getOrCreateSession(
         sessionId,
-        '/tmp', // Default project path for voice
+        projectPath,
       );
       client.sessionId = sessionId;
 
@@ -226,9 +227,9 @@ export class VoiceGateway
 
   private async handleSelectOption(
     client: AuthenticatedVoiceSocket,
-    data: { optionId: string; sessionId: string },
+    data: { optionId: string; sessionId: string; repoPath?: string },
   ): Promise<void> {
-    const { optionId, sessionId } = data;
+    const { optionId, sessionId, repoPath } = data;
     this.logger.log(`Option selected: ${optionId} in session ${sessionId}`);
 
     try {
@@ -238,7 +239,8 @@ export class VoiceGateway
         status: 'processing',
       });
 
-      const emitter = await this.voiceSessionService.getOrCreateSession(sessionId, '/tmp');
+      const projectPath = repoPath || '/tmp';
+      const emitter = await this.voiceSessionService.getOrCreateSession(sessionId, projectPath);
 
       const responseHandler = async (output: VoiceClaudeOutput) => {
         if (output.type === 'response' && output.text) {

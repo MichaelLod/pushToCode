@@ -14,12 +14,14 @@ export interface VoiceTextMessage {
   type: 'voice_text';
   text: string;
   sessionId: string;
+  repoPath?: string;
 }
 
 export interface VoiceSelectOptionMessage {
   type: 'voice_select_option';
   optionId: string;
   sessionId: string;
+  repoPath?: string;
 }
 
 export interface VoicePingMessage {

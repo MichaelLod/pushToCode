@@ -148,9 +148,24 @@ export function useAudioPlayer(props: AudioPlayerProps = {}): AudioPlayerHandle 
  * AudioPlayer component - Visual representation of audio playback state
  */
 export function AudioPlayer({ isPlaying }: { isPlaying: boolean }) {
+  const [tick, setTick] = useState(0);
+
+  // Animate bars using interval
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
   if (!isPlaying) {
     return null;
   }
+
+  const time = tick * 50;
 
   return (
     <div className="flex items-center justify-center gap-1 py-2">
@@ -159,11 +174,9 @@ export function AudioPlayer({ isPlaying }: { isPlaying: boolean }) {
         {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="w-1 bg-accent rounded-full animate-pulse"
+            className="w-1 bg-accent rounded-full transition-all duration-75"
             style={{
-              height: `${40 + Math.sin(Date.now() / 200 + i) * 30}%`,
-              animationDelay: `${i * 100}ms`,
-              animationDuration: "300ms",
+              height: `${40 + Math.sin(time / 200 + i) * 30}%`,
             }}
           />
         ))}

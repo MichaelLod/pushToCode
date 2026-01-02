@@ -17,6 +17,7 @@ export interface UseVoiceWebSocketOptions {
   url: string;
   apiKey?: string;
   sessionId: string;
+  repoPath?: string;
   autoConnect?: boolean;
   onMessage?: (message: VoiceServerMessage) => void;
   onStatusChange?: (status: ConnectionStatus) => void;
@@ -43,7 +44,7 @@ const DEFAULT_OPTIONS = {
 const MAX_RECONNECT_DELAY = 30000;
 
 export function useVoiceWebSocket(options: UseVoiceWebSocketOptions): UseVoiceWebSocketReturn {
-  const { url, apiKey, sessionId, autoConnect = true } = options;
+  const { url, apiKey, sessionId, repoPath, autoConnect = true } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -230,16 +231,18 @@ export function useVoiceWebSocket(options: UseVoiceWebSocketOptions): UseVoiceWe
       type: "voice_text",
       text,
       sessionId,
+      repoPath,
     });
-  }, [send, sessionId]);
+  }, [send, sessionId, repoPath]);
 
   const selectOption = useCallback((optionId: string): boolean => {
     return send({
       type: "voice_select_option",
       optionId,
       sessionId,
+      repoPath,
     });
-  }, [send, sessionId]);
+  }, [send, sessionId, repoPath]);
 
   // Connect on mount if autoConnect
   useEffect(() => {
