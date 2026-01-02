@@ -7,6 +7,7 @@ import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { InputBar } from "@/components/InputBar";
 import { FileAttachment } from "@/components/FileUpload";
 import { Settings } from "@/components/Settings";
+import { VoiceMode } from "@/components/VoiceMode";
 import { useSessions } from "@/hooks/useSessions";
 import { useSettings } from "@/hooks/useSettings";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
@@ -15,11 +16,14 @@ import { NewSessionModal } from "@/components/NewSessionModal";
 import { ConnectionStatus as ConnectionStatusType } from "@/hooks/useWebSocket";
 import { VoiceOutputData } from "@/types/messages";
 
+type AppMode = "terminal" | "voice";
+
 export default function Home() {
   const settings = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [modalDismissed, setModalDismissed] = useState(false);
+  const [appMode, setAppMode] = useState<AppMode>("terminal");
 
   // Voice mode state
   const [voiceMode, setVoiceMode] = useState(false);
@@ -173,11 +177,16 @@ export default function Home() {
 
   // Focus current terminal when tab changes
   useEffect(() => {
-    if (currentSession) {
+    if (currentSession && appMode === "terminal") {
       const pane = terminalPaneRefs.current[currentSession.id];
       setTimeout(() => pane?.focus(), 100);
     }
-  }, [currentSession]);
+  }, [currentSession, appMode]);
+
+  // Toggle between terminal and voice mode
+  const toggleAppMode = useCallback(() => {
+    setAppMode(prev => prev === "terminal" ? "voice" : "terminal");
+  }, []);
 
   // Show settings if not configured
   const needsConfig = !settings.serverUrl || !settings.apiKey;
@@ -200,7 +209,57 @@ export default function Home() {
           pushToCode <span className="text-xs text-text-secondary font-normal">{process.env.NEXT_PUBLIC_VERSION}</span>
         </h1>
         <div className="flex items-center gap-4">
-          <ConnectionStatus status={currentStatus} />
+          {/* Mode toggle button */}
+          <button
+            onClick={toggleAppMode}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                     bg-bg-secondary border border-border
+                     text-text-secondary hover:text-text-primary hover:border-accent
+                     transition-colors"
+            aria-label={`Switch to ${appMode === "terminal" ? "voice" : "terminal"} mode`}
+          >
+            {appMode === "terminal" ? (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" x2="12" y1="19" y2="22" />
+                </svg>
+                <span className="text-sm">Voice</span>
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" x2="20" y1="19" y2="19" />
+                </svg>
+                <span className="text-sm">Terminal</span>
+              </>
+            )}
+          </button>
+
+          {appMode === "terminal" && <ConnectionStatus status={currentStatus} />}
+
           <button
             onClick={() => setShowSettings(true)}
             className="text-text-secondary hover:text-text-primary transition-colors"
@@ -226,81 +285,93 @@ export default function Home() {
 
       {/* Main content area */}
       <main className="flex flex-1 flex-col overflow-hidden">
-        {/* Horizontal session tabs */}
-        <SessionTabs
-          sessions={sessions}
-          currentSessionId={currentSession?.id ?? null}
-          onSelectSession={selectSession}
-          onCloseSession={handleCloseSession}
-          onAddSession={handleNewSession}
-        />
-
-        {/* Terminal area */}
-        <div className="flex flex-1 flex-col min-h-0">
-          {needsConfig ? (
-            <div className="flex flex-1 items-center justify-center p-4">
-              <div className="text-center">
-                <p className="text-text-secondary mb-4">
-                  Configure your server URL and API key to get started
-                </p>
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="rounded-lg bg-accent px-4 py-2 text-bg-primary font-medium hover:opacity-90 transition-opacity"
-                >
-                  Open Settings
-                </button>
-              </div>
+        {needsConfig ? (
+          <div className="flex flex-1 items-center justify-center p-4">
+            <div className="text-center">
+              <p className="text-text-secondary mb-4">
+                Configure your server URL and API key to get started
+              </p>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="rounded-lg bg-accent px-4 py-2 text-bg-primary font-medium hover:opacity-90 transition-opacity"
+              >
+                Open Settings
+              </button>
             </div>
-          ) : sessions.length > 0 ? (
-            <div className="flex-1 min-h-0 relative">
-              {/* Render all session terminals, show only the current one */}
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="absolute inset-0"
-                  style={{
-                    visibility: session.id === currentSession?.id ? "visible" : "hidden",
-                    zIndex: session.id === currentSession?.id ? 1 : 0,
-                  }}
-                >
-                  <TerminalPane
-                    ref={(handle) => {
-                      terminalPaneRefs.current[session.id] = handle;
-                    }}
-                    sessionId={session.id}
-                    repoPath={session.repoPath}
-                    serverUrl={settings.serverUrl}
-                    apiKey={settings.apiKey}
-                    isActive={session.id === currentSession?.id}
-                    onStatusChange={handleStatusChange(session.id)}
-                    fontSize={settings.fontSize}
-                    fontFamily={settings.fontFamily}
-                    voiceMode={voiceMode}
-                    onVoiceOutput={handleVoiceOutput}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <p className="text-text-secondary">No active session</p>
-            </div>
-          )}
-
-          {/* Toolbar with action buttons */}
-          <InputBar
-            onKeyPress={handleKeyPress}
-            onTranscription={handleTranscription}
-            onFileUpload={handleFileUpload}
-            disabled={!isCurrentConnected || !currentSession}
+          </div>
+        ) : appMode === "voice" ? (
+          /* Voice Mode */
+          <VoiceMode
             serverUrl={settings.serverUrl}
             apiKey={settings.apiKey}
-            voiceMode={voiceMode}
-            onVoiceModeChange={setVoiceMode}
-            voiceQueueCount={voiceQueue.length}
-            onRecordStart={stopTTS}
+            sessionId={currentSession?.id ?? "voice-session"}
           />
-        </div>
+        ) : (
+          /* Terminal Mode */
+          <>
+            {/* Horizontal session tabs */}
+            <SessionTabs
+              sessions={sessions}
+              currentSessionId={currentSession?.id ?? null}
+              onSelectSession={selectSession}
+              onCloseSession={handleCloseSession}
+              onAddSession={handleNewSession}
+            />
+
+            {/* Terminal area */}
+            <div className="flex flex-1 flex-col min-h-0">
+              {sessions.length > 0 ? (
+                <div className="flex-1 min-h-0 relative">
+                  {/* Render all session terminals, show only the current one */}
+                  {sessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="absolute inset-0"
+                      style={{
+                        visibility: session.id === currentSession?.id ? "visible" : "hidden",
+                        zIndex: session.id === currentSession?.id ? 1 : 0,
+                      }}
+                    >
+                      <TerminalPane
+                        ref={(handle) => {
+                          terminalPaneRefs.current[session.id] = handle;
+                        }}
+                        sessionId={session.id}
+                        repoPath={session.repoPath}
+                        serverUrl={settings.serverUrl}
+                        apiKey={settings.apiKey}
+                        isActive={session.id === currentSession?.id}
+                        onStatusChange={handleStatusChange(session.id)}
+                        fontSize={settings.fontSize}
+                        fontFamily={settings.fontFamily}
+                        voiceMode={voiceMode}
+                        onVoiceOutput={handleVoiceOutput}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <p className="text-text-secondary">No active session</p>
+                </div>
+              )}
+
+              {/* Toolbar with action buttons */}
+              <InputBar
+                onKeyPress={handleKeyPress}
+                onTranscription={handleTranscription}
+                onFileUpload={handleFileUpload}
+                disabled={!isCurrentConnected || !currentSession}
+                serverUrl={settings.serverUrl}
+                apiKey={settings.apiKey}
+                voiceMode={voiceMode}
+                onVoiceModeChange={setVoiceMode}
+                voiceQueueCount={voiceQueue.length}
+                onRecordStart={stopTTS}
+              />
+            </div>
+          </>
+        )
       </main>
 
       {/* Settings panel */}
