@@ -58,7 +58,8 @@ export type VoiceClientMessage =
 export type VoiceServerMessageType =
   | "voice_response"
   | "voice_audio"
-  | "voice_error"
+  | "error"
+  | "status"
   | "ping"
   | "pong";
 
@@ -66,6 +67,7 @@ export interface VoiceResponseMessage {
   type: "voice_response";
   text: string;
   options?: VoiceOption[];
+  sessionId: string;
 }
 
 export interface VoiceAudioMessage {
@@ -75,9 +77,16 @@ export interface VoiceAudioMessage {
 }
 
 export interface VoiceErrorMessage {
-  type: "voice_error";
+  type: "error";
+  sessionId: string;
   code: string;
   message: string;
+}
+
+export interface VoiceStatusMessage {
+  type: "status";
+  sessionId: string;
+  status: "idle" | "processing" | "speaking";
 }
 
 export interface VoiceServerPingMessage {
@@ -86,12 +95,14 @@ export interface VoiceServerPingMessage {
 
 export interface VoiceServerPongMessage {
   type: "pong";
+  timestamp?: number;
 }
 
 export type VoiceServerMessage =
   | VoiceResponseMessage
   | VoiceAudioMessage
   | VoiceErrorMessage
+  | VoiceStatusMessage
   | VoiceServerPingMessage
   | VoiceServerPongMessage;
 
@@ -117,5 +128,9 @@ export function isVoiceAudioMessage(msg: VoiceServerMessage): msg is VoiceAudioM
 }
 
 export function isVoiceErrorMessage(msg: VoiceServerMessage): msg is VoiceErrorMessage {
-  return msg.type === "voice_error";
+  return msg.type === "error";
+}
+
+export function isVoiceStatusMessage(msg: VoiceServerMessage): msg is VoiceStatusMessage {
+  return msg.type === "status";
 }
