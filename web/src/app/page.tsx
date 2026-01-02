@@ -371,7 +371,7 @@ export default function Home() {
               />
             </div>
           </>
-        )
+        )}
       </main>
 
       {/* Settings panel */}
