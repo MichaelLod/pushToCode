@@ -7,6 +7,7 @@ import { ClaudeModule } from './claude/claude.module';
 import { TranscriptionModule } from './transcription/transcription.module';
 import { ReposModule } from './repos/repos.module';
 import { StressorModule } from './stressor/stressor.module';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { StressorModule } from './stressor/stressor.module';
     TranscriptionModule,
     ReposModule,
     StressorModule,
+    VoiceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
