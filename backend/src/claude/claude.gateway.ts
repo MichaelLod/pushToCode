@@ -12,6 +12,7 @@ import { ClaudeService, ClaudeOutput } from './claude.service';
 import { IncomingMessage } from 'http';
 import { ServerMessage, TerminalBufferData, VoiceOutputData } from '../common/interfaces/websocket.interface';
 import { TerminalBufferSnapshot } from './terminal-buffer.service';
+import { VoiceSessionService } from '../voice/voice-session.service';
 
 // Extended WebSocket type with custom properties
 interface AuthenticatedWebSocket extends WebSocket {
@@ -42,6 +43,7 @@ export class ClaudeGateway
   constructor(
     private claudeService: ClaudeService,
     private configService: ConfigService,
+    private voiceSessionService: VoiceSessionService,
   ) {}
 
   afterInit(server: Server): void {
@@ -478,8 +480,8 @@ export class ClaudeGateway
         });
 
         // Check for voice markers in the buffer content if voice mode is enabled
-        if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
-          const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+        if (this.voiceSessionService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+          const voiceData = this.voiceSessionService.parseVoiceMarkers(snapshot.ansiContent);
           if (voiceData) {
             this.sendMessage(client, {
               type: 'voice_output',
@@ -576,8 +578,8 @@ export class ClaudeGateway
           });
 
           // Check for voice markers in the buffer content if voice mode is enabled
-          if (this.claudeService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
-            const voiceData = this.claudeService.parseVoiceMarkers(snapshot.ansiContent);
+          if (this.voiceSessionService.isVoiceModeEnabled(sessionId) && snapshot.ansiContent) {
+            const voiceData = this.voiceSessionService.parseVoiceMarkers(snapshot.ansiContent);
             if (voiceData) {
               this.sendMessage(client, {
                 type: 'voice_output',
@@ -749,7 +751,7 @@ export class ClaudeGateway
     const { sessionId, enabled } = data;
     this.logger.log(`Voice mode ${enabled ? 'enabled' : 'disabled'} for session ${sessionId}`);
 
-    this.claudeService.setVoiceMode(sessionId, enabled);
+    this.voiceSessionService.setVoiceMode(sessionId, enabled);
 
     this.sendMessage(client, {
       type: 'voice_mode_changed',
